@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: #f6f7fb;
+  color: hsl(var(--foreground));
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Markdown rendering inside chat answers */
+.prose-chat {
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+.prose-chat h1, .prose-chat h2, .prose-chat h3 {
+  font-weight: 600;
+  margin: 0.6em 0 0.3em;
+}
+.prose-chat h1 { font-size: 1.2rem; }
+.prose-chat h2 { font-size: 1.05rem; }
+.prose-chat h3 { font-size: 0.95rem; }
+.prose-chat p { margin: 0.4em 0; }
+.prose-chat ul { list-style: disc; padding-left: 1.2rem; margin: 0.4em 0; }
+.prose-chat ol { list-style: decimal; padding-left: 1.2rem; margin: 0.4em 0; }
+.prose-chat code {
+  font-family: ui-monospace, monospace;
+  background: #f1f5f9;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+}
+.prose-chat pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+.prose-chat pre code { background: transparent; padding: 0; }
+.prose-chat table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+  font-size: 0.85em;
+}
+.prose-chat th, .prose-chat td {
+  border: 1px solid #e2e8f0;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+.prose-chat th { background: #f8fafc; font-weight: 600; }
+.prose-chat blockquote {
+  border-left: 3px solid #cbd5e1;
+  padding-left: 0.75rem;
+  color: #475569;
+  margin: 0.5em 0;
+}
+.prose-chat sup {
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Scrollbar polish */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+*::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
