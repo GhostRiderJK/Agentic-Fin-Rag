@@ -1,8 +1,9 @@
-﻿"""Application configuration, env-driven via pydantic-settings."""
+"""Application configuration, env-driven via pydantic-settings."""
 
 from __future__ import annotations
 
 import os
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal, Optional, List
@@ -41,7 +42,7 @@ def _parse_env_file(path: str) -> dict[str, str]:
 
 
 def _is_valid_field(k: str) -> bool:
-    """True if `k` matches a Settings field name (case-insensitive)."""
+    """True if ``k`` matches a Settings field name (case-insensitive)."""
     if not k or k.startswith("_"):
         return False
     fields = Settings.model_fields  # type: ignore[attr-defined]
@@ -66,6 +67,7 @@ class Settings(BaseSettings):
 
     # MongoDB (primary relational store for FinRAG 2.0)
     mongodb_url: str = "mongodb://localhost:27017"
+    mongodb_test_url: str = "mongodb://127.0.0.1:27018/?directConnection=true"
     mongodb_db_name: str = "finrag"
     mongodb_server_selection_timeout_ms: int = 5000
 
@@ -84,19 +86,24 @@ class Settings(BaseSettings):
     upload_max_size_mb: int = 100
 
     # LLM Providers Configuration
-    llm_provider: Literal["openai", "anthropic", "ollama", "stub", "omnirroute"] = "stub"
-    
+    llm_provider: Literal["openai", "anthropic", "ollama", "stub", "omniroute", "omnirroute"] = "stub"
+
     # OmniRoute Configuration
-    omnirroute_base_url: str = "http://localhost:20128/v1"
-    omnirroute_api_key: str = ""  # Will be set via environment variable
-    
+    omniroute_base_url: str = "http://localhost:20128/v1"
+    omniroute_api_key: str = ""  # Will be set via environment variable
+
+    # Deprecated aliases (still accepted, log warning)
+    omnirroute_base_url: str = ""  # deprecated, use omniroute_base_url
+    omnirroute_api_key: str = ""   # deprecated, use omniroute_api_key
+
     # Model Configuration (pinned IDs as required)
     chat_model: str = "nvidia/nvidia/nemotron-3-super-120b-a12b"
     reasoning_model: str = "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+
     vision_model: str = ""  # To be configured
     embedding_model: str = ""  # To be configured (may use local if no Nemotron embedding)
     rerank_model: str = ""  # To be configured
-    
+
     # Fallback chain (explicit pinned IDs, comma-separated)
     fallback_chain: str = "nvidia/nvidia/nemotron-3-super-120b-a12b,ollama/llama3.1"
 
@@ -151,11 +158,21 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @model_validator(mode="after")
-    def _check_omnirroute_config(self) -> "Settings":
-        """Validate OmniRoute configuration when selected as LLM provider."""
+    def _check_llm_provider_and_deprecated(self) -> "Settings":
+        """Validate OmniRoute configuration and handle deprecated aliases."""
+        # Handle llm_provider deprecated alias
         if self.llm_provider == "omnirroute":
-            if not self.omnirroute_api_key:
-                raise ValueError("OMNIRROUTE_API_KEY must be set when LLM_PROVIDER=omnirroute")
+            logging.warning(
+                "LLM_PROVIDER='omnirroute' is deprecated; use 'omniroute' instead."
+            )
+            self.llm_provider = "omniroute"
+
+        # Validate OmniRoute configuration when selected as LLM provider.
+        if self.llm_provider == "omniroute":
+            if not self.omniroute_api_key:
+                raise ValueError("OMNIROUTE_API_KEY must be set when LLM_PROVIDER=omniroute")
+            if not self.omniroute_base_url:
+                raise ValueError("OMNIROUTE_BASE_URL must be set when LLM_PROVIDER=omniroute")
             if not self.chat_model:
                 raise ValueError("CHAT_MODEL must be set when using OmniRoute")
             if not self.reasoning_model:
@@ -164,6 +181,21 @@ class Settings(BaseSettings):
             for model in [self.chat_model, self.reasoning_model]:
                 if model and not any(model.startswith(provider + "/") for provider in self.allowed_providers_list):
                     raise ValueError(f"Model {model} uses a provider not in ALLOWED_PROVIDERS: {self.allowed_providers_list}")
+
+        # Handle deprecated env var aliases
+        if self.omnirroute_base_url:
+            logging.warning(
+                "OMNIRROUTE_BASE_URL is deprecated; use OMNIROUTE_BASE_URL instead."
+            )
+            if not self.omniroute_base_url:
+                self.omniroute_base_url = self.omnirroute_base_url
+        if self.omnirroute_api_key:
+            logging.warning(
+                "OMNIRROUTE_API_KEY is deprecated; use OMNIROUTE_API_KEY instead."
+            )
+            if not self.omniroute_api_key:
+                self.omniroute_api_key = self.omnirroute_api_key
+
         return self
 
     def ensure_dirs(self) -> None:
@@ -183,7 +215,8 @@ class Settings(BaseSettings):
                 path = path[1:]
             return str(Path(path).resolve().parent)
         return ""
-    
+
+
 
 @lru_cache
 def get_settings() -> Settings:
