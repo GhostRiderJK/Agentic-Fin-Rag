@@ -1,58 +1,54 @@
-"""Application configuration, env-driven via pydantic-settings."""
+"""Application configuration, env-driven via pydantic-settings.
+
+Precedence, highest first:
+
+1. keyword arguments passed to ``Settings(...)``
+2. real process environment variables
+3. ``.env`` files (see ``_ENV_FILES``; a later file overrides an earlier one)
+4. the defaults declared below
+
+Real environment variables win over ``.env`` on purpose: that is how a
+container orchestrator or CI injects production secrets. Nothing in this
+module writes to ``os.environ``.
+"""
 
 from __future__ import annotations
 
-import os
 import logging
+import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal, Optional, List
+from typing import Any, List, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Search for .env in CWD, then the backend/ dir, then the repo root, so the
-# app works whether launched from backend/ or the repo root.
+log = logging.getLogger(__name__)
+
 _HERE = Path(__file__).resolve().parent                 # .../backend/app/core
 _REPO = _HERE.parents[2]                                  # repo root
-_ENV_FILES = [
-    str(Path.cwd() / ".env"),                             # current working dir
-    str(_HERE.parents[1] / ".env"),                       # backend/.env
-    str(_REPO / ".env"),                                  # repo root .env
-]
 
+# Later entries override earlier ones, so the most specific file goes last:
+# repo-root .env < backend/.env < .env in the current working directory.
+# Files that do not exist are skipped.
+_ENV_FILES = (
+    str(_REPO / ".env"),
+    str(_HERE.parents[1] / ".env"),
+    str(Path.cwd() / ".env"),
+)
 
-def _parse_env_file(path: str) -> dict[str, str]:
-    """Minimal .env parser: KEY=VALUE per line, supports quotes + # comments."""
-    out: dict[str, str] = {}
-    for raw in Path(path).read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, _, v = line.partition("=")
-        k = k.strip()
-        v = v.strip()
-        # strip inline trailing comment if not quoted
-        if v and v[0] in "\"'" and v[-1] == v[0]:
-            v = v[1:-1]
-        else:
-            v = v.split(" #", 0)[0].strip()
-        out[k] = v
-    return out
+_DEFAULT_JWT_SECRET = "change-me-in-production"
+_MIN_PROD_JWT_SECRET_LEN = 32
 
-
-def _is_valid_field(k: str) -> bool:
-    """True if ``k`` matches a Settings field name (case-insensitive)."""
-    if not k or k.startswith("_"):
-        return False
-    fields = Settings.model_fields  # type: ignore[attr-defined]
-    return k.lower() in {f.lower() for f in fields}
+def _provider_allowed(model: str, allowed: List[str]) -> bool:
+    """True when ``model`` is ``<provider>/...`` and the provider is allowed."""
+    provider, sep, _ = model.partition("/")
+    return bool(sep) and provider in allowed
 
 
 class Settings(BaseSettings):
-    # We handle .env file parsing manually in get_settings() to ensure
-    # .env file values take priority over OS environment variables.
     model_config = SettingsConfigDict(
+        env_file=_ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -65,8 +61,9 @@ class Settings(BaseSettings):
     app_port: int = 8000
     app_log_level: str = "info"
 
-    # MongoDB (primary relational store for FinRAG 2.0)
-    mongodb_url: str = "mongodb://localhost:27017"
+    # MongoDB (primary store for FinRAG 2.0). Use 127.0.0.1, not "localhost",
+    # which can resolve to ::1 and reach a different server on Windows.
+    mongodb_url: str = "mongodb://127.0.0.1:27017"
     mongodb_test_url: str = "mongodb://127.0.0.1:27018/?directConnection=true"
     mongodb_db_name: str = "finrag"
     mongodb_server_selection_timeout_ms: int = 5000
@@ -85,29 +82,43 @@ class Settings(BaseSettings):
     storage_path: str = "./data/storage"
     upload_max_size_mb: int = 100
 
-    # LLM Providers Configuration
-    llm_provider: Literal["openai", "anthropic", "ollama", "stub", "omniroute", "omnirroute"] = "stub"
+    # LLM provider. The misspelling "omnirroute" is mapped to "omniroute"
+    # (with a warning) by _normalise_llm_provider before validation.
+    llm_provider: Literal["openai", "anthropic", "ollama", "stub", "omniroute"] = "stub"
 
-    # OmniRoute Configuration
-    omniroute_base_url: str = "http://localhost:20128/v1"
-    omniroute_api_key: str = ""  # Will be set via environment variable
+    # OmniRoute gateway.
+    omniroute_base_url: str = Field(
+        default="http://127.0.0.1:20128/v1",
+        validation_alias="OMNIROUTE_BASE_URL",
+    )
+    omniroute_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias="OMNIROUTE_API_KEY",
+    )
 
-    # Deprecated aliases (still accepted, log warning)
-    omnirroute_base_url: str = ""  # deprecated, use omniroute_base_url
-    omnirroute_api_key: str = ""   # deprecated, use omniroute_api_key
+    # Deprecated misspellings from an earlier revision, kept so existing .env
+    # files keep working. They are separate fields, not extra aliases on the
+    # fields above, because pydantic-settings cannot tell us which alias
+    # matched; a populated deprecated field is an unambiguous signal.
+    # _resolve_deprecated_names folds them into the real fields.
+    omnirroute_base_url: str | None = Field(
+        default=None, validation_alias="OMNIRROUTE_BASE_URL", exclude=True, repr=False
+    )
+    omnirroute_api_key: SecretStr | None = Field(
+        default=None, validation_alias="OMNIRROUTE_API_KEY", exclude=True, repr=False
+    )
 
-    # Model Configuration (pinned IDs as required)
+    # Model configuration: pinned IDs, never "auto" routing
     chat_model: str = "nvidia/nvidia/nemotron-3-super-120b-a12b"
     reasoning_model: str = "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+    vision_model: str = ""      # to be configured
+    embedding_model: str = ""   # to be configured (may be local)
+    rerank_model: str = ""      # to be configured
 
-    vision_model: str = ""  # To be configured
-    embedding_model: str = ""  # To be configured (may use local if no Nemotron embedding)
-    rerank_model: str = ""  # To be configured
-
-    # Fallback chain (explicit pinned IDs, comma-separated)
+    # Explicit pinned fallback chain, comma-separated
     fallback_chain: str = "nvidia/nvidia/nemotron-3-super-120b-a12b,ollama/llama3.1"
 
-    # Provider allow-list (security requirement, comma-separated)
+    # Providers allowed to receive tenant data, comma-separated
     allowed_providers: str = "nvidia,ollama"
 
     @property
@@ -136,7 +147,7 @@ class Settings(BaseSettings):
     hybrid_bm25_weight: float = 0.4
 
     # Auth
-    jwt_secret: str = "change-me-in-production"
+    jwt_secret: str = _DEFAULT_JWT_SECRET
     jwt_alg: str = "HS256"
     jwt_ttl_minutes: int = 720
     api_key_header: str = "X-API-Key"
@@ -148,55 +159,107 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
+    # -- validators ---------------------------------------------------------
+
     @field_validator("cors_origins")
     @classmethod
     def _strip_cors(cls, v: str) -> str:
         return ",".join(part.strip() for part in v.split(",") if part.strip())
 
+    @field_validator("llm_provider", mode="before")
+    @classmethod
+    def _normalise_llm_provider(cls, v: Any) -> Any:
+        if not isinstance(v, str):
+            return v
+        v = v.strip().lower()
+        if v == "omnirroute":
+            log.warning(
+                "LLM_PROVIDER='omnirroute' is deprecated (misspelling); "
+                "use 'omniroute'."
+            )
+            return "omniroute"
+        return v
+
+    @model_validator(mode="after")
+    def _validate_settings(self) -> "Settings":
+        self._resolve_deprecated_names()
+        self._validate_omniroute()
+        self._validate_jwt_secret()
+        return self
+
+    def _resolve_deprecated_names(self) -> None:
+        """Honour the misspelled OMNIRROUTE_* names, with a warning.
+
+        The correct name wins when both are set.
+        """
+        for old, new, replacement in (
+            ("omnirroute_base_url", "omniroute_base_url", "OMNIROUTE_BASE_URL"),
+            ("omnirroute_api_key", "omniroute_api_key", "OMNIROUTE_API_KEY"),
+        ):
+            value = getattr(self, old)
+            if value is None:
+                continue
+            log.warning(
+                "%s is deprecated (misspelling); use %s instead.",
+                old.upper(),
+                replacement,
+            )
+            if new not in self.model_fields_set:
+                setattr(self, new, value)
+
+    def _validate_omniroute(self) -> None:
+        if self.llm_provider != "omniroute":
+            return
+        problems: List[str] = []
+        if not self.omniroute_api_key.get_secret_value():
+            problems.append("OMNIROUTE_API_KEY must be set when LLM_PROVIDER=omniroute")
+        if not self.omniroute_base_url:
+            problems.append("OMNIROUTE_BASE_URL must be set when LLM_PROVIDER=omniroute")
+        if not self.chat_model:
+            problems.append("CHAT_MODEL must be set when LLM_PROVIDER=omniroute")
+        if not self.reasoning_model:
+            problems.append("REASONING_MODEL must be set when LLM_PROVIDER=omniroute")
+
+        allowed = self.allowed_providers_list
+        if not allowed:
+            problems.append(
+                "ALLOWED_PROVIDERS must list at least one provider "
+                "when LLM_PROVIDER=omniroute"
+            )
+        else:
+            pinned = {
+                "CHAT_MODEL": self.chat_model,
+                "REASONING_MODEL": self.reasoning_model,
+                "VISION_MODEL": self.vision_model,
+            }
+            for i, model in enumerate(self.fallback_chain_list):
+                pinned[f"FALLBACK_CHAIN[{i}]"] = model
+            for name, model in pinned.items():
+                if model and not _provider_allowed(model, allowed):
+                    problems.append(
+                        f"{name}={model!r} uses a provider not in "
+                        f"ALLOWED_PROVIDERS {allowed}"
+                    )
+        if problems:
+            raise ValueError("; ".join(problems))
+
+    def _validate_jwt_secret(self) -> None:
+        if self.app_env != "prod":
+            return
+        if (
+            self.jwt_secret == _DEFAULT_JWT_SECRET
+            or len(self.jwt_secret) < _MIN_PROD_JWT_SECRET_LEN
+        ):
+            raise ValueError(
+                "JWT_SECRET must be set to a random value of at least "
+                f"{_MIN_PROD_JWT_SECRET_LEN} characters when APP_ENV=prod"
+            )
+
+    # -- derived values -----------------------------------------------------
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
-
-    @model_validator(mode="after")
-    def _check_llm_provider_and_deprecated(self) -> "Settings":
-        """Validate OmniRoute configuration and handle deprecated aliases."""
-        # Handle llm_provider deprecated alias
-        if self.llm_provider == "omnirroute":
-            logging.warning(
-                "LLM_PROVIDER='omnirroute' is deprecated; use 'omniroute' instead."
-            )
-            self.llm_provider = "omniroute"
-
-        # Validate OmniRoute configuration when selected as LLM provider.
-        if self.llm_provider == "omniroute":
-            if not self.omniroute_api_key:
-                raise ValueError("OMNIROUTE_API_KEY must be set when LLM_PROVIDER=omniroute")
-            if not self.omniroute_base_url:
-                raise ValueError("OMNIROUTE_BASE_URL must be set when LLM_PROVIDER=omniroute")
-            if not self.chat_model:
-                raise ValueError("CHAT_MODEL must be set when using OmniRoute")
-            if not self.reasoning_model:
-                raise ValueError("REASONING_MODEL must be set when using OmniRoute")
-            # Check that models are in allowed providers
-            for model in [self.chat_model, self.reasoning_model]:
-                if model and not any(model.startswith(provider + "/") for provider in self.allowed_providers_list):
-                    raise ValueError(f"Model {model} uses a provider not in ALLOWED_PROVIDERS: {self.allowed_providers_list}")
-
-        # Handle deprecated env var aliases
-        if self.omnirroute_base_url:
-            logging.warning(
-                "OMNIRROUTE_BASE_URL is deprecated; use OMNIROUTE_BASE_URL instead."
-            )
-            if not self.omniroute_base_url:
-                self.omniroute_base_url = self.omnirroute_base_url
-        if self.omnirroute_api_key:
-            logging.warning(
-                "OMNIRROUTE_API_KEY is deprecated; use OMNIROUTE_API_KEY instead."
-            )
-            if not self.omniroute_api_key:
-                self.omniroute_api_key = self.omnirroute_api_key
-
-        return self
 
     def ensure_dirs(self) -> None:
         db_dir = self._database_dir()
@@ -217,37 +280,12 @@ class Settings(BaseSettings):
         return ""
 
 
-
 @lru_cache
 def get_settings() -> Settings:
-    # In test mode, never load .env — tests configure the environment
-    # explicitly via os.environ in conftest.py.
-    if os.environ.get("APP_ENV") == "test":
-        # Provide minimal defaults for test mode
-        os.environ.setdefault("LLM_PROVIDER", "stub")
-        os.environ.setdefault("OMNIROUTE_API_KEY", "test-key")
-        os.environ.setdefault("OMNIROUTE_BASE_URL", "http://test")
-        os.environ.setdefault("CHAT_MODEL", "nvidia/nvidia/nemotron-3-super-120b-a12b")
-        os.environ.setdefault("REASONING_MODEL", "nvidia/nvidia/nemotron-3-ultra-550b-a55b")
-        os.environ.setdefault("FALLBACK_CHAIN", "nvidia/nvidia/nemotron-3-super-120b-a12b,ollama/llama3.1")
-        os.environ.setdefault("ALLOWED_PROVIDERS", "nvidia,ollama")
-        return Settings()  # type: ignore[call-arg]
-
-    # Parse .env files first to get values
-    env_values: dict[str, str] = {}
-    for path in reversed(_ENV_FILES):  # apply root .env last so it wins
-        if Path(path).exists():
-            try:
-                env_values.update(_parse_env_file(path))
-            except Exception:
-                pass
-
-    # Push .env values into os.environ so pydantic can read them
-    # This ensures .env values take precedence over existing env vars
-    for k, v in env_values.items():
-        if _is_valid_field(k):
-            os.environ[k] = v
-
+    # Tests configure the environment explicitly (tests/conftest.py) and must
+    # never pick up a developer's .env file.
+    if os.environ.get("APP_ENV", "").lower() == "test":
+        return Settings(_env_file=None)  # type: ignore[call-arg]
     return Settings()  # type: ignore[call-arg]
 
 

@@ -26,6 +26,7 @@ from typing import Any, AsyncIterator, Dict, Iterable, List, Mapping, Optional, 
 
 from app.core.logging import get_logger
 from app.db.mongodb.client import get_database
+from app.db.mongodb.pipeline_guard import guard_pipeline
 from app.db.mongodb.tenant_context import TenantContext, TenantContextError
 
 log = get_logger(__name__)
@@ -294,18 +295,27 @@ class BaseRepository:
     # -- aggregation --------------------------------------------------------
 
     async def aggregate(
-        self, ctx: TenantContext, pipeline: Iterable[Mapping[str, Any]]
+        self,
+        ctx: TenantContext,
+        pipeline: Iterable[Mapping[str, Any]],
+        *,
+        allow_foreign_collections: Sequence[str] = (),
     ) -> List[Dict[str, Any]]:
-        """Run an aggregation guarded by the tenant filter.
+        """Run an aggregation that is provably scoped to the caller's tenant.
 
-        The tenant ``$match`` is prepended so a caller's pipeline cannot read
-        across tenants — later stages only ever see pre-filtered documents.
+        The pipeline goes through :func:`guard_pipeline`, which prepends the
+        tenant ``$match``, rejects write stages and code-execution operators,
+        and only permits ``$lookup`` / ``$graphLookup`` / ``$unionWith`` on
+        collections listed in ``allow_foreign_collections`` (each must carry a
+        ``tenant_id`` field), injecting the tenant filter on the foreign side.
+        Raises :class:`PipelineGuardError` for anything it cannot prove safe.
         """
         self._require_ctx(ctx)
-        stages: List[Dict[str, Any]] = []
-        if not ctx.is_super_admin:
-            stages.append({"$match": {"tenant_id": ctx.tenant_id}})
-        stages.extend(dict(stage) for stage in pipeline)
+        stages = guard_pipeline(
+            pipeline,
+            tenant_id=None if ctx.is_super_admin else ctx.tenant_id,
+            allow_foreign_collections=allow_foreign_collections,
+        )
         return [doc async for doc in self.collection.aggregate(stages)]
 
     # -- index management ---------------------------------------------------
