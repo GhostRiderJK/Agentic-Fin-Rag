@@ -7,65 +7,11 @@
 - Pin exact model IDs. Never use OmniRoute auto/* routing in evals.
 - A test result only counts if it comes from plain `python -m pytest -q` run in backend. Never use --ignore, --deselect, -k or -x to produce a number.
 - Every file you say you changed must appear in `git status --short`. Anything else is NOT DONE.
+- Never delete, rename, weaken or merge an existing test or assertion. If a test must change, say so and wait.
+- Never run git commit, stash, reset, checkout or clean unless asked.
+- Do not create backup copies (*_old.py), logs, status files or summaries in the repo unless asked.
 
-# PowerShell snippet: run FinRAG 2.0 test suite (mongomock + real MongoDB)
-Set-Location -Path (Resolve-Path ".")
-function Invoke-PyTest { 
-# --------------------------------------------------------------
-# PowerShell snippet: run FinRAG 2.0 test suite (mongomock + real MongoDB)
-# --------------------------------------------------------------
-
-# Ensure we are in the repository root
-Set-Location -Path (Resolve-Path ".")
-
-# Helper function to run pytest and capture both console output and exit code
-function Invoke-PyTest {
-    param(
-        [string]$ExtraArgs = "",          # additional args to pass to pytest
-        [string]$Label   = "Test run"    # label for the console header
-    )
-    Write-Host "=== $Label ===" -ForegroundColor Cyan
-    $start = Get-Date
-    $cmd = "python -m pytest -v $ExtraArgs"
-    & python -m pytest -v $ExtraArgs 2>&1 | Tee-Object -Variable $output
-    $exitCode = $LASTEXITCODE
-    $end = Get-Date
-    $elapsed = ($end - $start).ToString("hh\:mm\:ss")
-    Write-Host "Finished $Label – ExitCode: $exitCode – Duration: $elapsed" -ForegroundColor Green
-    return @{ Output = $output; ExitCode = $exitCode; Elapsed = $elapsed }
-}
-
-# -----------------------------------------------------------------
-# 1️⃣  Run the test suite against mongomock (default, no extra env)
-# -----------------------------------------------------------------
-$mockResult = Invoke-PyTest -Label "Mongomock test suite"
-
-# Save the mongomock log
-$mockResult.Output | Out-File -FilePath "test_log_mongomock.txt" -Encoding UTF8
-
-# -----------------------------------------------------------------
-# 2️⃣  Run the test suite against a real MongoDB server
-# -----------------------------------------------------------------
-# Define the test‑specific MongoDB URL (adjust if yours differs)
-# You can also set this in your system/user environment if you prefer.
-$env:MONGODB_TEST_URL = "mongodb://127.0.0.1:27018/?directConnection=true"
-
-# Optionally, you can also point the regular MONGODB_URL to the same test URL
-# if you want the application to use the test database by default.
-# $env:MONGODB_URL = $env:MONGODB_TEST_URL
-
-$realResult = Invoke-PyTest -ExtraArgs "-m integration" -Label "Real MongoDB integration tests"
-
-# Save the real‑MongoDB log
-$realResult.Output | Out-File -FilePath "test_log_real_mongo.txt" -Encoding UTF8
-
-# -----------------------------------------------------------------
-# 3️⃣  Quick summary
-# -----------------------------------------------------------------
-Write-Host "`n=== SUMMARY ===" -ForegroundColor Yellow
-Write-Host "Mongomock suite : $($mockResult.ExitCode) – $($mockResult.Elapsed)"
-Write-Host "Real MongoDB    : $($realResult.ExitCode) – $($realResult.Elapsed)"
-Write-Host "Logs saved to: test_log_mongomock.txt  and  test_log_real_mongo.txt" 
-}
-# … rest of the script …
-
+# Test environment
+- Run tests from D:\Project\agentic-fin-rag\backend (pyproject.toml is there).
+- Real MongoDB for integration tests: Atlas-local container `mongodb-atlas-test` at mongodb://127.0.0.1:27018/?directConnection=true (MONGODB_TEST_URL). Dev MongoDB (native service): 127.0.0.1:27017.
+- Tests that need a real server skip themselves when it is unreachable. A run with skips does not prove the real-server cases.

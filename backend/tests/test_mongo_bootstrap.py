@@ -61,7 +61,7 @@ def test_bootstrap_creates_every_planned_index_and_is_idempotent(real_db, run):
     run(ensure_indexes())
 
     for coll in C.ALL_COLLECTIONS:
-        info = run(real_db[coll].index_information())
+        info = run_db(run, lambda: real_db[coll].index_information())
         planned_names = {idx.document["name"] for idx in C.index_plan()[coll]}
         # The default _id_ index is always present.
         assert set(info.keys()) == planned_names | {"_id_"}

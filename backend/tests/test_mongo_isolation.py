@@ -161,8 +161,7 @@ class TestContextRequired:
         with pytest.raises(TenantContextError):
             run(repo.aggregate(None, [{"$group": {"_id": None}}]))
 
-    def test_empty_tenant_id_rejected(self, mongo_db):
-        repo = DocumentRepository()
+    def test_empty_tenant_id_rejected(self):
         with pytest.raises(TenantContextError):
             TenantContext(tenant_id="")
 
@@ -310,10 +309,8 @@ class TestPerTenantUniqueness:
         """Email uniqueness is per (tenant, email), not global — mirrors the
         compound index uq_user_tenant_email."""
         users = UserRepository()
-        # Tenant A already has a@tenant-a.test; duplicate within A fails at
-        # the application level only if we rely on the index. mongomock does
-        # enforce unique indexes once the index exists, so assert the *lookup* scoping instead:
-        assert run(users.get_by_email(ctx_a, "a@tenant-a.test")) is not None
+        # Index enforcement itself is covered in test_mongo_bootstrap.py;
+        # here we assert the *lookup* scoping:        assert run(users.get_by_email(ctx_a, "a@tenant-a.test")) is not None
         assert run(users.get_by_email(ctx_b, "a@tenant-a.test")) is None
         # Tenant B has its own user with its own email.
         assert run(users.get_by_email(ctx_b, "b@tenant-b.test")) is not None
