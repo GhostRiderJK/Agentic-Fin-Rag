@@ -161,6 +161,11 @@ class TestContextRequired:
         with pytest.raises(TenantContextError):
             run(repo.aggregate(None, [{"$group": {"_id": None}}]))
 
+    def test_empty_tenant_id_rejected(self, mongo_db):
+        repo = DocumentRepository()
+        with pytest.raises(TenantContextError):
+            TenantContext(tenant_id="")
+
 
 # ---------------------------------------------------------------------------
 # Cross-tenant reads must fail closed
