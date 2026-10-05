@@ -78,9 +78,9 @@ build-backend = "setuptools.build_meta"
 where = ["."]
 
 [tool.pytest.ini_options]
-markers = ["integration: needs a real MongoDB (MONGODB_TEST_URL)"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = ["integration: needs a real MongoDB (MONGODB_TEST_URL)"]
 filterwarnings = [
   "ignore::DeprecationWarning",
 ]
