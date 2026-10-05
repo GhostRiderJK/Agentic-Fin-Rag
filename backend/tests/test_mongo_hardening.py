@@ -44,7 +44,23 @@ from app.db.mongodb.repositories import (  # noqa: E402
 )
 from app.db.mongodb.tenant_context import TenantContext  # noqa: E402
 
-DEFAULT_URL = "mongodb://127.0.0.1:27018/?directConnection=true"
+# Check if tests/__init__.py exists to determine import style
+if not os.path.exists(os.path.join(os.path.dirname(__file__), '__init__.py')):
+    from mongo_support import (
+        DEFAULT_URL,
+        _PROBES,
+        _unreachable_reason,
+        run_db,
+        _open_real,
+    )
+else:
+    from tests.mongo_support import (
+        DEFAULT_URL,
+        _PROBES,
+        _unreachable_reason,
+        run_db,
+        _open_real,
+    )
 
 
 class LedgerRepository(BaseRepository):

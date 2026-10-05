@@ -5,6 +5,8 @@
 - Use 127.0.0.1, never localhost. Never touch the finrag dev database in tests.
 - Never print, log or commit secrets. Read them from environment variables only.
 - Pin exact model IDs. Never use OmniRoute auto/* routing in evals.
+- A test result only counts if it comes from plain `python -m pytest -q` run in backend. Never use --ignore, --deselect, -k or -x to produce a number.
+- Every file you say you changed must appear in `git status --short`. Anything else is NOT DONE.
 
 # PowerShell snippet: run FinRAG 2.0 test suite (mongomock + real MongoDB)
 Set-Location -Path (Resolve-Path ".")
@@ -66,3 +68,4 @@ Write-Host "Real MongoDB    : $($realResult.ExitCode) – $($realResult.Elapsed)
 Write-Host "Logs saved to: test_log_mongomock.txt  and  test_log_real_mongo.txt" 
 }
 # … rest of the script …
+

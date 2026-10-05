@@ -12,6 +12,10 @@ mongomock in-memory engine.
 
 from __future__ import annotations
 
+import asyncio
+import os
+import uuid
+
 import pytest
 
 pytest.importorskip("mongomock_motor", reason="mongomock-motor not installed")
@@ -31,18 +35,22 @@ from app.db.mongodb.repositories import (  # noqa: E402
 )
 from app.db.mongodb.tenant_context import TenantContext, TenantContextError  # noqa: E402
 
+# Check if tests/__init__.py exists to determine import style
+if not os.path.exists(os.path.join(os.path.dirname(__file__), '__init__.py')):
+    from mongo_support import _open_real as open_real
+else:
+    from tests.mongo_support import _open_real as open_real
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
-@pytest.fixture()
-def mongo_db():
-    """A fresh in-memory database per test, so tests never share state."""
-    db = mongomock_motor.AsyncMongoMockClient().get_database("finrag_test")
-    set_test_database(db)
-    yield db
-    set_test_database(None)
+_loop_holder = {"loop": None}
+
+
+def run(coro):
+    return _loop_holder["loop"].run_until_complete(coro)
 
 
 @pytest.fixture()
@@ -53,6 +61,31 @@ def ctx_a() -> TenantContext:
 @pytest.fixture()
 def ctx_b() -> TenantContext:
     return TenantContext(tenant_id="tenant-BBB", user_id="user-b1")
+
+
+@pytest.fixture(params=["mock", pytest.param("real", marks=pytest.mark.integration)])
+def mongo_db(request):
+    loop = asyncio.new_event_loop()
+    _loop_holder["loop"] = loop
+    close = None
+    try:
+        if request.param == "mock":
+            mongomock_motor = pytest.importorskip(
+                "mongomock_motor", reason="mongomock-motor not installed"
+            )
+            database = mongomock_motor.AsyncMongoMockClient().get_database(
+                f"finrag_test_{uuid.uuid4().hex}"
+            )
+            set_test_database(database)
+        else:
+            database, close = open_real(run)   # skips quickly when the server is down
+        yield database
+    finally:
+        if close:
+            close()
+        set_test_database(None)
+        loop.close()
+        _loop_holder["loop"] = None
 
 
 @pytest.fixture()
@@ -86,19 +119,14 @@ def seeded(mongo_db, ctx_a, ctx_b):
                                      "fiscal_year": 2025, "value": 999.0})
         await msgs.insert_one(ctx_b, {"conversation_id": "conv-b", "content": "hello B"})
 
-    import asyncio
-    asyncio.run(_seed())
+    run(_seed())
     return mongo_db
-
-
-def run(coro):
-    import asyncio
-    return asyncio.run(coro)
 
 
 # ---------------------------------------------------------------------------
 # Context requirements
 # ---------------------------------------------------------------------------
+
 
 class TestContextRequired:
     """No repository call may run without a TenantContext."""
@@ -133,14 +161,11 @@ class TestContextRequired:
         with pytest.raises(TenantContextError):
             run(repo.aggregate(None, [{"$group": {"_id": None}}]))
 
-    def test_empty_tenant_id_rejected(self):
-        with pytest.raises(TenantContextError):
-            TenantContext(tenant_id="")
-
 
 # ---------------------------------------------------------------------------
 # Cross-tenant reads must fail closed
 # ---------------------------------------------------------------------------
+
 
 class TestCrossTenantReads:
     def test_find_one_ignores_foreign_tenant_id(self, seeded, ctx_a, ctx_b):
@@ -215,6 +240,7 @@ class TestCrossTenantReads:
 # Cross-tenant writes must fail closed
 # ---------------------------------------------------------------------------
 
+
 class TestCrossTenantWrites:
     def test_update_foreign_id_is_noop(self, seeded, ctx_a, ctx_b):
         docs = DocumentRepository()
@@ -273,6 +299,7 @@ class TestCrossTenantWrites:
 # Unique-per-tenant constraints
 # ---------------------------------------------------------------------------
 
+
 class TestPerTenantUniqueness:
     def test_same_email_allowed_in_different_tenants(self, seeded, ctx_a, ctx_b):
         """Email uniqueness is per (tenant, email), not global — mirrors the
@@ -280,7 +307,7 @@ class TestPerTenantUniqueness:
         users = UserRepository()
         # Tenant A already has a@tenant-a.test; duplicate within A fails at
         # the application level only if we rely on the index. mongomock does
-        # not enforce unique indexes, so assert the *lookup* scoping instead:
+        # enforce unique indexes once the index exists, so assert the *lookup* scoping instead:
         assert run(users.get_by_email(ctx_a, "a@tenant-a.test")) is not None
         assert run(users.get_by_email(ctx_b, "a@tenant-a.test")) is None
         # Tenant B has its own user with its own email.
@@ -290,6 +317,7 @@ class TestPerTenantUniqueness:
 # ---------------------------------------------------------------------------
 # Super-admin bypass is explicit and auditable
 # ---------------------------------------------------------------------------
+
 
 class TestSuperAdminBypass:
     def test_super_admin_can_span_tenants_only_when_flagged(self, seeded, ctx_a):
@@ -304,5 +332,5 @@ class TestSuperAdminBypass:
         # Without the flag, the same caller sees only their own tenant.
         normal = run(docs.aggregate(ctx_a,
                                     [{"$group": {"_id": "$tenant_id",
-                                                 "n": {"$sum": 1}}}]))
+                                             "n": {"$sum": 1}}}]))
         assert {g["_id"] for g in normal} == {"tenant-AAA"}

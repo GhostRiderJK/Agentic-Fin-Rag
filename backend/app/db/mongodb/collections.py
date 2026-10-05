@@ -62,7 +62,7 @@ def index_plan() -> Dict[str, List[IndexModel]]:
             IndexModel([("name", t)], name="ix_tenant_name"),
         ],
         USERS: [
-            IndexModel([("id", t)], name="uq_user_id", unique=True),
+            IndexModel([("tenant_id", t), ("id", t)], name="uq_user_id", unique=True),
             # Emails are unique *per tenant*, not globally.
             IndexModel(
                 [("tenant_id", t), ("email", t)],
@@ -73,15 +73,15 @@ def index_plan() -> Dict[str, List[IndexModel]]:
                 [("tenant_id", t), ("api_key", t)],
                 name="uq_user_tenant_api_key",
                 unique=True,
-                sparse=True,
+                partialFilterExpression={"api_key": {"$type": "string"}},
             ),
         ],
         WORKSPACES: [
-            IndexModel([("id", t)], name="uq_workspace_id", unique=True),
+            IndexModel([("tenant_id", t), ("id", t)], name="uq_workspace_id", unique=True),
             IndexModel([("tenant_id", t), ("created_at", d)], name="ix_ws_tenant_created"),
         ],
         DOCUMENTS: [
-            IndexModel([("id", t)], name="uq_document_id", unique=True),
+            IndexModel([("tenant_id", t), ("id", t)], name="uq_document_id", unique=True),
             IndexModel(
                 [("tenant_id", t), ("workspace_id", t), ("status", t)],
                 name="ix_doc_scope_status",
@@ -97,12 +97,12 @@ def index_plan() -> Dict[str, List[IndexModel]]:
             ),
         ],
         CHUNKS: [
-            IndexModel([("id", t)], name="uq_chunk_id", unique=True),
+            IndexModel([("tenant_id", t), ("id", t)], name="uq_chunk_id", unique=True),
             IndexModel([("tenant_id", t), ("document_id", t)], name="ix_chunk_document"),
             IndexModel([("tenant_id", t), ("parent_id", t)], name="ix_chunk_parent"),
         ],
         STRUCTURED_FINANCIALS: [
-            IndexModel([("id", t)], name="uq_financial_id", unique=True),
+            IndexModel([("tenant_id", t), ("id", t)], name="uq_financial_id", unique=True),
             IndexModel(
                 [
                     ("tenant_id", t),
@@ -119,7 +119,7 @@ def index_plan() -> Dict[str, List[IndexModel]]:
             ),
         ],
         CONVERSATIONS: [
-            IndexModel([("id", t)], name="uq_conversation_id", unique=True),
+            IndexModel([("tenant_id", t), ("id", t)], name="uq_conversation_id", unique=True),
             IndexModel(
                 [("tenant_id", t), ("workspace_id", t), ("updated_at", d)],
                 name="ix_conv_scope_updated",
@@ -127,14 +127,14 @@ def index_plan() -> Dict[str, List[IndexModel]]:
             IndexModel([("tenant_id", t), ("user_id", t)], name="ix_conv_user"),
         ],
         MESSAGES: [
-            IndexModel([("id", t)], name="uq_message_id", unique=True),
+            IndexModel([("tenant_id", t), ("id", t)], name="uq_message_id", unique=True),
             IndexModel(
                 [("tenant_id", t), ("conversation_id", t), ("created_at", t)],
                 name="ix_msg_conversation",
             ),
         ],
         JOBS: [
-            IndexModel([("id", t)], name="uq_job_id", unique=True),
+            IndexModel([("tenant_id", t), ("id", t)], name="uq_job_id", unique=True),
             IndexModel(
                 [("tenant_id", t), ("status", t), ("created_at", d)],
                 name="ix_job_status",
@@ -148,22 +148,22 @@ def index_plan() -> Dict[str, List[IndexModel]]:
             ),
         ],
         EVAL_RUNS: [
-            IndexModel([("id", t)], name="uq_eval_run_id", unique=True),
+            IndexModel([("tenant_id", t), ("id", t)], name="uq_eval_run_id", unique=True),
             IndexModel([("tenant_id", t), ("created_at", d)], name="ix_eval_run_created"),
         ],
         EVAL_ITEMS: [
-            IndexModel([("id", t)], name="uq_eval_item_id", unique=True),
+            IndexModel([("tenant_id", t), ("id", t)], name="uq_eval_item_id", unique=True),
             IndexModel([("tenant_id", t), ("run_id", t)], name="ix_eval_item_run"),
         ],
         AUDIT_LOG: [
-            IndexModel([("id", t)], name="uq_audit_id", unique=True),
+            IndexModel([("tenant_id", t), ("id", t)], name="uq_audit_id", unique=True),
             IndexModel(
                 [("tenant_id", t), ("created_at", d)], name="ix_audit_tenant_created"
             ),
             IndexModel([("tenant_id", t), ("action", t)], name="ix_audit_action"),
         ],
         FEEDBACK: [
-            IndexModel([("id", t)], name="uq_feedback_id", unique=True),
+            IndexModel([("tenant_id", t), ("id", t)], name="uq_feedback_id", unique=True),
             IndexModel(
                 [("tenant_id", t), ("message_id", t)], name="ix_feedback_message"
             ),
