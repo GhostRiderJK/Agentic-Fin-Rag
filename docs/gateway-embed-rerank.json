@@ -1,0 +1,301 @@
+{
+  "base_url": "http://localhost:20128/v1",
+  "nvidia_model_count": 91,
+  "buckets": {
+    "chat": [
+      "nvidia/01-ai/yi-large",
+      "nvidia/adept/fuyu-8b",
+      "nvidia/ai21labs/jamba-1.5-large-instruct",
+      "nvidia/aisingapore/sea-lion-7b-instruct",
+      "nvidia/bigcode/starcoder2-15b",
+      "nvidia/databricks/dbrx-instruct",
+      "nvidia/deepseek-ai/deepseek-coder-6.7b-instruct",
+      "nvidia/deepseek-ai/deepseek-v4.1-flash",
+      "nvidia/google/codegemma-1.1-7b",
+      "nvidia/google/codegemma-7b",
+      "nvidia/google/deplot",
+      "nvidia/google/diffusiongemma-26b-a4b-it",
+      "nvidia/google/gemma-2b",
+      "nvidia/google/gemma-3-12b-it",
+      "nvidia/google/gemma-3-4b-it",
+      "nvidia/google/gemma-4-31b-it",
+      "nvidia/google/recurrentgemma-2b",
+      "nvidia/ibm/granite-3.0-3b-a800m-instruct",
+      "nvidia/ibm/granite-3.0-8b-instruct",
+      "nvidia/ibm/granite-34b-code-instruct",
+      "nvidia/ibm/granite-8b-code-instruct",
+      "nvidia/meta/codellama-70b",
+      "nvidia/meta/llama-3.2-11b-vision-instruct",
+      "nvidia/meta/llama-3.2-90b-vision-instruct",
+      "nvidia/meta/llama-guard-4-12b",
+      "nvidia/meta/llama2-70b",
+      "nvidia/meta/muse-glimmer-30b",
+      "nvidia/microsoft/kosmos-2",
+      "nvidia/microsoft/phi-3-vision-128k-instruct",
+      "nvidia/microsoft/phi-3.5-moe-instruct",
+      "nvidia/mistralai/codestral-22b-instruct-v0.1",
+      "nvidia/mistralai/mistral-7b-instruct-v0.3",
+      "nvidia/mistralai/mistral-large",
+      "nvidia/mistralai/mistral-large-2-instruct",
+      "nvidia/mistralai/mixtral-8x22b-v0.1",
+      "nvidia/moonshotai/kimi-k2.6",
+      "nvidia/nv-mistralai/mistral-nemo-12b-instruct",
+      "nvidia/nvidia/ai-synthetic-video-detector",
+      "nvidia/nvidia/cosmos-reason2-8b",
+      "nvidia/nvidia/embed-qa-4",
+      "nvidia/nvidia/ising-calibration-1.5-31b",
+      "nvidia/nvidia/llama-3.1-nemoguard-8b-content-safety",
+      "nvidia/nvidia/llama-3.1-nemoguard-8b-topic-control",
+      "nvidia/nvidia/llama-3.1-nemotron-51b-instruct",
+      "nvidia/nvidia/llama-3.1-nemotron-70b-instruct",
+      "nvidia/nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+      "nvidia/nvidia/llama-3.1-nemotron-ultra-253b-v1",
+      "nvidia/nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+      "nvidia/nvidia/llama-3.2-nv-embedqa-1b-v1",
+      "nvidia/nvidia/llama-nemotron-embed-vl-1b-v2",
+      "nvidia/nvidia/llama3-chatqa-1.5-70b",
+      "nvidia/nvidia/mistral-nemo-minitron-8b-8k-instruct",
+      "nvidia/nvidia/nemotron-3-embed-1b",
+      "nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      "nvidia/nvidia/nemotron-3-super-120b-a12b",
+      "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+      "nvidia/nvidia/nemotron-3.5-content-safety",
+      "nvidia/nvidia/nemotron-3.5-lightning-30b-a3b",
+      "nvidia/nvidia/nemotron-3.5-super-vl-120b-a12b",
+      "nvidia/nvidia/nemotron-4-340b-instruct",
+      "nvidia/nvidia/nemotron-4-340b-reward",
+      "nvidia/nvidia/nemotron-nano-3-30b-a3b",
+      "nvidia/nvidia/nemotron-parse",
+      "nvidia/nvidia/nemotron-parse-2.0",
+      "nvidia/nvidia/neva-22b",
+      "nvidia/nvidia/nv-embedqa-mistral-7b-v2",
+      "nvidia/nvidia/riva-translate-4b-instruct",
+      "nvidia/nvidia/riva-translate-4b-instruct-v2",
+      "nvidia/nvidia/vila",
+      "nvidia/openai/gpt-oss-20b",
+      "nvidia/poolside/laguna-xs-2.1",
+      "nvidia/snowflake/arctic-embed-l",
+      "nvidia/stepfun-ai/step-5-preview",
+      "nvidia/writer/palmyra-creative-122b",
+      "nvidia/writer/palmyra-fin-70b-32k",
+      "nvidia/writer/palmyra-med-70b",
+      "nvidia/writer/palmyra-med-70b-32k",
+      "nvidia/z-ai/glm-5.3",
+      "nvidia/z-ai/glm-5.3-flash",
+      "nvidia/zyphra/zamba2-7b-instruct"
+    ],
+    "vision": [
+      "nvidia/deepseek-ai/deepseek-v4.1-flash",
+      "nvidia/meta/llama-3.2-11b-vision-instruct",
+      "nvidia/meta/llama-3.2-90b-vision-instruct",
+      "nvidia/microsoft/phi-3-vision-128k-instruct",
+      "nvidia/moonshotai/kimi-k2.6",
+      "nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+      "nvidia/z-ai/glm-5.3",
+      "nvidia/z-ai/glm-5.3-flash"
+    ],
+    "embedding": [
+      "nvidia/nvidia/embed-qa-4",
+      "nvidia/nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+      "nvidia/nvidia/llama-3.2-nv-embedqa-1b-v1",
+      "nvidia/nvidia/llama-nemotron-embed-vl-1b-v2",
+      "nvidia/nvidia/nemotron-3-embed-1b",
+      "nvidia/nvidia/nv-embedqa-mistral-7b-v2",
+      "nvidia/snowflake/arctic-embed-l",
+      "nvidia/nv-embedqa-e5-v5"
+    ],
+    "rerank": [
+      "nvidia/nv-rerankqa-mistral-4b-v3"
+    ]
+  },
+  "results": [
+    {
+      "model": "nvidia/nvidia/nemotron-3-embed-1b",
+      "results": {
+        "embeddings": {
+          "ok": false,
+          "status": 404,
+          "dim": null,
+          "usage": null,
+          "error": "404: upstream_error 404 page not found",
+          "latency_ms": 1195.7
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/llama-3.2-nv-embedqa-1b-v1",
+      "results": {
+        "embeddings": {
+          "ok": false,
+          "status": 404,
+          "dim": null,
+          "usage": null,
+          "error": "404: upstream_error 404 page not found",
+          "latency_ms": 1236.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nv-embedqa-mistral-7b-v2",
+      "results": {
+        "embeddings": {
+          "ok": false,
+          "status": 404,
+          "dim": null,
+          "usage": null,
+          "error": "404: upstream_error 404 page not found",
+          "latency_ms": 1216.1
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/snowflake/arctic-embed-l",
+      "results": {
+        "embeddings": {
+          "ok": false,
+          "status": 404,
+          "dim": null,
+          "usage": null,
+          "error": "404: upstream_error Function '1528a0ad-205a-46ac-a783-94e2372586a9': Not found for account '[REDACTED-ACCOUNT]'",
+          "latency_ms": 1394.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/embed-qa-4",
+      "results": {
+        "embeddings": {
+          "ok": false,
+          "status": 404,
+          "dim": null,
+          "usage": null,
+          "error": "404: upstream_error 404 page not found",
+          "latency_ms": 365.0
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/llama-nemotron-embed-vl-1b-v2",
+      "results": {
+        "embeddings": {
+          "ok": false,
+          "status": 404,
+          "dim": null,
+          "usage": null,
+          "error": "404: upstream_error 404 page not found",
+          "latency_ms": 369.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+      "results": {
+        "embeddings": {
+          "ok": false,
+          "status": 404,
+          "dim": null,
+          "usage": null,
+          "error": "404: upstream_error 404 page not found",
+          "latency_ms": 370.4
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nv-rerankqa-mistral-4b-v3",
+      "results": {
+        "rerank": {
+          "ok": false,
+          "status": 404,
+          "error": "no rerank route found",
+          "latency_ms": 418.3
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": null,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": null
+      }
+    }
+  ]
+}

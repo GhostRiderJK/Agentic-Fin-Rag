@@ -1,0 +1,988 @@
+{
+  "base_url": "http://localhost:20128/v1",
+  "nvidia_model_count": 91,
+  "buckets": {
+    "chat": [
+      "nvidia/01-ai/yi-large",
+      "nvidia/adept/fuyu-8b",
+      "nvidia/ai21labs/jamba-1.5-large-instruct",
+      "nvidia/aisingapore/sea-lion-7b-instruct",
+      "nvidia/bigcode/starcoder2-15b",
+      "nvidia/databricks/dbrx-instruct",
+      "nvidia/deepseek-ai/deepseek-coder-6.7b-instruct",
+      "nvidia/deepseek-ai/deepseek-v4.1-flash",
+      "nvidia/google/codegemma-1.1-7b",
+      "nvidia/google/codegemma-7b",
+      "nvidia/google/deplot",
+      "nvidia/google/diffusiongemma-26b-a4b-it",
+      "nvidia/google/gemma-2b",
+      "nvidia/google/gemma-3-12b-it",
+      "nvidia/google/gemma-3-4b-it",
+      "nvidia/google/gemma-4-31b-it",
+      "nvidia/google/recurrentgemma-2b",
+      "nvidia/ibm/granite-3.0-3b-a800m-instruct",
+      "nvidia/ibm/granite-3.0-8b-instruct",
+      "nvidia/ibm/granite-34b-code-instruct",
+      "nvidia/ibm/granite-8b-code-instruct",
+      "nvidia/meta/codellama-70b",
+      "nvidia/meta/llama-3.2-11b-vision-instruct",
+      "nvidia/meta/llama-3.2-90b-vision-instruct",
+      "nvidia/meta/llama-guard-4-12b",
+      "nvidia/meta/llama2-70b",
+      "nvidia/meta/muse-glimmer-30b",
+      "nvidia/microsoft/kosmos-2",
+      "nvidia/microsoft/phi-3-vision-128k-instruct",
+      "nvidia/microsoft/phi-3.5-moe-instruct",
+      "nvidia/mistralai/codestral-22b-instruct-v0.1",
+      "nvidia/mistralai/mistral-7b-instruct-v0.3",
+      "nvidia/mistralai/mistral-large",
+      "nvidia/mistralai/mistral-large-2-instruct",
+      "nvidia/mistralai/mixtral-8x22b-v0.1",
+      "nvidia/moonshotai/kimi-k2.6",
+      "nvidia/nv-mistralai/mistral-nemo-12b-instruct",
+      "nvidia/nvidia/ai-synthetic-video-detector",
+      "nvidia/nvidia/cosmos-reason2-8b",
+      "nvidia/nvidia/embed-qa-4",
+      "nvidia/nvidia/ising-calibration-1.5-31b",
+      "nvidia/nvidia/llama-3.1-nemoguard-8b-content-safety",
+      "nvidia/nvidia/llama-3.1-nemoguard-8b-topic-control",
+      "nvidia/nvidia/llama-3.1-nemotron-51b-instruct",
+      "nvidia/nvidia/llama-3.1-nemotron-70b-instruct",
+      "nvidia/nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+      "nvidia/nvidia/llama-3.1-nemotron-ultra-253b-v1",
+      "nvidia/nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+      "nvidia/nvidia/llama-3.2-nv-embedqa-1b-v1",
+      "nvidia/nvidia/llama-nemotron-embed-vl-1b-v2",
+      "nvidia/nvidia/llama3-chatqa-1.5-70b",
+      "nvidia/nvidia/mistral-nemo-minitron-8b-8k-instruct",
+      "nvidia/nvidia/nemotron-3-embed-1b",
+      "nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      "nvidia/nvidia/nemotron-3-super-120b-a12b",
+      "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+      "nvidia/nvidia/nemotron-3.5-content-safety",
+      "nvidia/nvidia/nemotron-3.5-lightning-30b-a3b",
+      "nvidia/nvidia/nemotron-3.5-super-vl-120b-a12b",
+      "nvidia/nvidia/nemotron-4-340b-instruct",
+      "nvidia/nvidia/nemotron-4-340b-reward",
+      "nvidia/nvidia/nemotron-nano-3-30b-a3b",
+      "nvidia/nvidia/nemotron-parse",
+      "nvidia/nvidia/nemotron-parse-2.0",
+      "nvidia/nvidia/neva-22b",
+      "nvidia/nvidia/nv-embedqa-mistral-7b-v2",
+      "nvidia/nvidia/riva-translate-4b-instruct",
+      "nvidia/nvidia/riva-translate-4b-instruct-v2",
+      "nvidia/nvidia/vila",
+      "nvidia/openai/gpt-oss-20b",
+      "nvidia/poolside/laguna-xs-2.1",
+      "nvidia/snowflake/arctic-embed-l",
+      "nvidia/stepfun-ai/step-5-preview",
+      "nvidia/writer/palmyra-creative-122b",
+      "nvidia/writer/palmyra-fin-70b-32k",
+      "nvidia/writer/palmyra-med-70b",
+      "nvidia/writer/palmyra-med-70b-32k",
+      "nvidia/z-ai/glm-5.3",
+      "nvidia/z-ai/glm-5.3-flash",
+      "nvidia/zyphra/zamba2-7b-instruct"
+    ],
+    "vision": [
+      "nvidia/deepseek-ai/deepseek-v4.1-flash",
+      "nvidia/meta/llama-3.2-11b-vision-instruct",
+      "nvidia/meta/llama-3.2-90b-vision-instruct",
+      "nvidia/microsoft/phi-3-vision-128k-instruct",
+      "nvidia/moonshotai/kimi-k2.6",
+      "nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+      "nvidia/z-ai/glm-5.3",
+      "nvidia/z-ai/glm-5.3-flash"
+    ],
+    "embedding": [
+      "nvidia/nvidia/embed-qa-4",
+      "nvidia/nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+      "nvidia/nvidia/llama-3.2-nv-embedqa-1b-v1",
+      "nvidia/nvidia/llama-nemotron-embed-vl-1b-v2",
+      "nvidia/nvidia/nemotron-3-embed-1b",
+      "nvidia/nvidia/nv-embedqa-mistral-7b-v2",
+      "nvidia/snowflake/arctic-embed-l",
+      "nvidia/nv-embedqa-e5-v5"
+    ],
+    "rerank": [
+      "nvidia/nv-rerankqa-mistral-4b-v3"
+    ]
+  },
+  "results": [
+    {
+      "model": "nvidia/google/diffusiongemma-26b-a4b-it",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "google/diffusiongemma-26b-a4b-it",
+          "text": "FINRAG_OK",
+          "usage": {
+            "prompt_tokens": 22,
+            "completion_tokens": 6,
+            "total_tokens": 28,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "d7fbca10-1a3d-44bd-869a-613f0a896ca9"
+          },
+          "latency_ms": 459.3
+        },
+        "tools": {
+          "ok": true,
+          "status": 200,
+          "tool_calls": [
+            {
+              "name": "multiply",
+              "arguments": "{\"a\": 1234.56, \"b\": 7}"
+            }
+          ],
+          "error": null,
+          "latency_ms": 5011.4
+        },
+        "json": {
+          "ok": false,
+          "status": 400,
+          "json_parsed": false,
+          "text": "",
+          "error": "400: 400 request: Value error, 'response_format' with type 'json_object' requires a JSON schema. Use 'response_format' with type 'json_schema' and pr",
+          "latency_ms": 653.2
+        },
+        "stream": {
+          "ok": true,
+          "status": 200,
+          "chunks": 3,
+          "error": null,
+          "latency_ms": 1080.5
+        }
+      },
+      "passed": [
+        "chat",
+        "tools",
+        "stream"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/meta/llama-3.2-11b-vision-instruct",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "meta/llama-3.2-11b-vision-instruct",
+          "text": "FINRAG_OK",
+          "usage": {
+            "prompt_tokens": 43,
+            "completion_tokens": 5,
+            "total_tokens": 48,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "2bb9174c-38da-4633-8679-1aa900853125"
+          },
+          "latency_ms": 667.4
+        },
+        "tools": {
+          "ok": true,
+          "status": 200,
+          "tool_calls": [
+            {
+              "name": "multiply",
+              "arguments": "{\"a\": 1234.56, \"b\": 7}"
+            }
+          ],
+          "error": null,
+          "latency_ms": 1583.6
+        },
+        "json": {
+          "ok": true,
+          "status": 200,
+          "json_parsed": true,
+          "text": "{\"company\": \"Apple\", \"revenue_usd_m\": 9000}",
+          "error": null,
+          "latency_ms": 8749.0
+        },
+        "stream": {
+          "ok": true,
+          "status": 200,
+          "chunks": 18,
+          "error": null,
+          "latency_ms": 3629.4
+        },
+        "vision": {
+          "ok": true,
+          "status": 200,
+          "text": "The pixel in the image is a light salmon pink colour.",
+          "error": null,
+          "latency_ms": 17697.4
+        }
+      },
+      "passed": [
+        "chat",
+        "tools",
+        "json",
+        "stream",
+        "vision"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "capabilities": {
+          "vision": true,
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/meta/muse-glimmer-30b",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "meta/muse-glimmer-30b",
+          "text": "Reply with exactly: FINRAG_OK\n\nWe need reply with",
+          "usage": {
+            "prompt_tokens": 64,
+            "completion_tokens": 16,
+            "total_tokens": 80,
+            "prompt_tokens_details": {
+              "audio_tokens": null,
+              "cached_tokens": 0
+            }
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "0d9d7cde-1ac1-4205-a940-97e8d1ca5bd4"
+          },
+          "latency_ms": 10391.7
+        },
+        "tools": {
+          "ok": false,
+          "status": 200,
+          "tool_calls": [],
+          "error": "no tool_calls returned",
+          "latency_ms": 27263.6
+        },
+        "json": {
+          "ok": false,
+          "status": 200,
+          "json_parsed": false,
+          "text": "Return JSON only: {\"company\": \"Apple\", \"revenue_usd_m\": 9000}\n\nReturn JSON only.",
+          "error": "response was not valid JSON",
+          "latency_ms": 64599.0
+        },
+        "stream": {
+          "ok": false,
+          "status": 200,
+          "chunks": 24,
+          "error": null,
+          "latency_ms": 28490.1
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+          "text": "{\"User Safety\": \"safe\"}",
+          "usage": {
+            "prompt_tokens": 403,
+            "completion_tokens": 9,
+            "total_tokens": 412,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "9750497a-7583-4c3b-8120-f851bd63adcc"
+          },
+          "latency_ms": 1057.5
+        },
+        "tools": {
+          "ok": false,
+          "status": 400,
+          "tool_calls": [],
+          "error": "400: {\"object\":\"error\",\"message\":\"\\\"auto\\\" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set\",\"type\":\"BadRequestErr",
+          "latency_ms": 365.1
+        },
+        "json": {
+          "ok": true,
+          "status": 200,
+          "json_parsed": true,
+          "text": "{\"User Safety\": \"safe\"}",
+          "error": null,
+          "latency_ms": 1284.8
+        },
+        "stream": {
+          "ok": true,
+          "status": 200,
+          "chunks": 11,
+          "error": null,
+          "latency_ms": 914.3
+        }
+      },
+      "passed": [
+        "chat",
+        "json",
+        "stream"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-3-super-120b-a12b",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "nvidia/nemotron-3-super-120b-a12b",
+          "text": "We need to reply exactly with \"FINRAG_OK\". No extra spaces or",
+          "usage": {
+            "prompt_tokens": 24,
+            "completion_tokens": 16,
+            "total_tokens": 40,
+            "prompt_tokens_details": {
+              "audio_tokens": null,
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": null,
+              "audio_tokens": null,
+              "reasoning_tokens": 16,
+              "rejected_prediction_tokens": null
+            }
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "40238a09-779e-4ac8-a96b-acaa0229b573"
+          },
+          "latency_ms": 1594.3
+        },
+        "tools": {
+          "ok": true,
+          "status": 200,
+          "tool_calls": [
+            {
+              "name": "multiply",
+              "arguments": "{\"a\":1234.56,\"b\":7}"
+            }
+          ],
+          "error": null,
+          "latency_ms": 1636.7
+        },
+        "json": {
+          "ok": true,
+          "status": 200,
+          "json_parsed": true,
+          "text": "{\"company\": \"Apple\", \"revenue_usd_m\": 9000}",
+          "error": null,
+          "latency_ms": 1341.5
+        },
+        "stream": {
+          "ok": false,
+          "status": 200,
+          "chunks": 13,
+          "error": null,
+          "latency_ms": 1805.7
+        }
+      },
+      "passed": [
+        "chat",
+        "tools",
+        "json"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 1000000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-3.5-content-safety",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "nvidia/nemotron-3.5-content-safety",
+          "text": "User Safety: safe",
+          "usage": {
+            "prompt_tokens": 475,
+            "completion_tokens": 5,
+            "total_tokens": 480,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "7c7b7f96-bd69-4504-a71e-b1b94bfff0dc"
+          },
+          "latency_ms": 299.8
+        },
+        "tools": {
+          "ok": false,
+          "status": 400,
+          "tool_calls": [],
+          "error": "400: 400 \"auto\" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set",
+          "latency_ms": 352.4
+        },
+        "json": {
+          "ok": false,
+          "status": 200,
+          "json_parsed": false,
+          "text": "User Safety: safe",
+          "error": "response was not valid JSON",
+          "latency_ms": 2300.3
+        },
+        "stream": {
+          "ok": true,
+          "status": 200,
+          "chunks": 8,
+          "error": null,
+          "latency_ms": 1893.2
+        }
+      },
+      "passed": [
+        "chat",
+        "stream"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-3.5-super-vl-120b-a12b",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+          "text": "The user wants me to reply with exactly \"FINRAG_OK\". No extra",
+          "usage": {
+            "prompt_tokens": 24,
+            "completion_tokens": 16,
+            "total_tokens": 40,
+            "prompt_tokens_details": {
+              "audio_tokens": null,
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": null,
+              "audio_tokens": null,
+              "reasoning_tokens": 16,
+              "rejected_prediction_tokens": null
+            }
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "2ace5768-186a-4846-8608-fcccc1aee80c"
+          },
+          "latency_ms": 1350.3
+        },
+        "tools": {
+          "ok": true,
+          "status": 200,
+          "tool_calls": [
+            {
+              "name": "multiply",
+              "arguments": "{\"a\":1234.56,\"b\":7}"
+            }
+          ],
+          "error": null,
+          "latency_ms": 977.7
+        },
+        "json": {
+          "ok": false,
+          "status": 200,
+          "json_parsed": false,
+          "text": "The user wants me to return JSON only with specific content: {\"company\": \"Apple\"",
+          "error": "response was not valid JSON",
+          "latency_ms": 1015.7
+        },
+        "stream": {
+          "ok": false,
+          "status": 200,
+          "chunks": 12,
+          "error": null,
+          "latency_ms": 1052.5
+        }
+      },
+      "passed": [
+        "chat",
+        "tools"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-parse-2.0",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "nvidia/nemotron-parse-2.0",
+          "text": "**25036666666666",
+          "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 16,
+            "total_tokens": 26,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "f90ae5f0-7c1b-4cb6-88b4-d31d750e3b1f"
+          },
+          "latency_ms": 1743.3
+        },
+        "tools": {
+          "ok": false,
+          "status": 400,
+          "tool_calls": [],
+          "error": "400: 400 \"auto\" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set",
+          "latency_ms": 389.4
+        },
+        "json": {
+          "ok": true,
+          "status": 200,
+          "json_parsed": true,
+          "text": "{}",
+          "error": null,
+          "latency_ms": 803.8
+        },
+        "stream": {
+          "ok": true,
+          "status": 200,
+          "chunks": 32,
+          "error": null,
+          "latency_ms": 1059.7
+        }
+      },
+      "passed": [
+        "chat",
+        "json",
+        "stream"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/riva-translate-4b-instruct-v2",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "nvidia/riva-translate-4b-instruct-v2",
+          "text": "Reply with exactly: FINRAG_OK",
+          "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 9,
+            "total_tokens": 30,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "beb88ee1-f060-49b3-a0ef-cfaef5e3f61f"
+          },
+          "latency_ms": 112.2
+        },
+        "tools": {
+          "ok": false,
+          "status": 400,
+          "tool_calls": [],
+          "error": "400: 400 \"auto\" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set",
+          "latency_ms": 3232.7
+        },
+        "json": {
+          "ok": true,
+          "status": 200,
+          "json_parsed": true,
+          "text": "{ \"company\": \"Apple\", \"revenue_usd_m\": 9000 }",
+          "error": null,
+          "latency_ms": 2852.2
+        },
+        "stream": {
+          "ok": true,
+          "status": 200,
+          "chunks": 16,
+          "error": null,
+          "latency_ms": 1629.7
+        }
+      },
+      "passed": [
+        "chat",
+        "json",
+        "stream"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/openai/gpt-oss-20b",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "openai/gpt-oss-20b",
+          "text": "The user says: \"Reply with exactly: FINRAG_OK",
+          "usage": {
+            "prompt_tokens": 73,
+            "completion_tokens": 16,
+            "total_tokens": 89,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "f46c53b6-2f8a-4fc5-9380-84b34b57819f"
+          },
+          "latency_ms": 1432.4
+        },
+        "tools": {
+          "ok": true,
+          "status": 200,
+          "tool_calls": [
+            {
+              "name": "multiply",
+              "arguments": "{\"a\": 1234.56, \"b\": 7}"
+            }
+          ],
+          "error": null,
+          "latency_ms": 1118.3
+        },
+        "json": {
+          "ok": false,
+          "status": 200,
+          "json_parsed": false,
+          "text": "The user says: \"Return JSON only: {\"company\": \"Apple\", \"revenue_usd_m\": 9000}\". ",
+          "error": "response was not valid JSON",
+          "latency_ms": 2444.2
+        },
+        "stream": {
+          "ok": false,
+          "status": 200,
+          "chunks": 42,
+          "error": null,
+          "latency_ms": 18195.7
+        }
+      },
+      "passed": [
+        "chat",
+        "tools"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 400000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/poolside/laguna-xs-2.1",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "poolside/laguna-xs-2.1",
+          "text": "FINRAG_OK",
+          "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 5,
+            "total_tokens": 26
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "4e250163-349c-43e4-977d-405a750b868e"
+          },
+          "latency_ms": 124.2
+        },
+        "tools": {
+          "ok": true,
+          "status": 200,
+          "tool_calls": [
+            {
+              "name": "multiply",
+              "arguments": "{\"a\":1234.56,\"b\":7}"
+            }
+          ],
+          "error": null,
+          "latency_ms": 4840.5
+        },
+        "json": {
+          "ok": true,
+          "status": 200,
+          "json_parsed": true,
+          "text": "{\"company\": \"Apple\", \"revenue_usd_m\": 9000}",
+          "error": null,
+          "latency_ms": 31000.2
+        },
+        "stream": {
+          "ok": true,
+          "status": 200,
+          "chunks": 22,
+          "error": null,
+          "latency_ms": 28557.4
+        }
+      },
+      "passed": [
+        "chat",
+        "tools",
+        "json",
+        "stream"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/stepfun-ai/step-5-preview",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "stepfun-ai/step-5-preview",
+          "text": "The user wants me to reply with exactly \"FINRAG_OK\". This is",
+          "usage": {
+            "prompt_tokens": 19,
+            "completion_tokens": 16,
+            "total_tokens": 35,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            }
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "1d14cff1-2f4f-46c0-a133-74f5cef6e251"
+          },
+          "latency_ms": 1361.5
+        },
+        "tools": {
+          "ok": true,
+          "status": 200,
+          "tool_calls": [
+            {
+              "name": "multiply",
+              "arguments": "{\"a\": 1234.56, \"b\": 7}"
+            }
+          ],
+          "error": null,
+          "latency_ms": 1576.0
+        },
+        "json": {
+          "ok": true,
+          "status": 200,
+          "json_parsed": true,
+          "text": "{\"company\": \"Apple\", \"revenue_usd_m\": 9000}",
+          "error": null,
+          "latency_ms": 1946.5
+        },
+        "stream": {
+          "ok": false,
+          "status": 200,
+          "chunks": 31,
+          "error": null,
+          "latency_ms": 30640.0
+        }
+      },
+      "passed": [
+        "chat",
+        "tools",
+        "json"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/z-ai/glm-5.3-flash",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "z-ai/glm-5.3-flash",
+          "text": "The user has sent a message asking me to reply with exactly \"FINRAG",
+          "usage": {
+            "prompt_tokens": 20,
+            "completion_tokens": 16,
+            "total_tokens": 36,
+            "prompt_tokens_details": {
+              "audio_tokens": null,
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": null,
+              "audio_tokens": null,
+              "reasoning_tokens": 16,
+              "rejected_prediction_tokens": null
+            }
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "8f94fc02-85fb-408b-8e2c-07b16f8466c5"
+          },
+          "latency_ms": 17531.6
+        },
+        "tools": {
+          "ok": true,
+          "status": 200,
+          "tool_calls": [
+            {
+              "name": "multiply",
+              "arguments": "{\"a\":1234.56,\"b\":7}"
+            }
+          ],
+          "error": null,
+          "latency_ms": 22618.4
+        },
+        "json": {
+          "ok": false,
+          "status": 200,
+          "json_parsed": false,
+          "text": "The user wants me to return JSON only, with the format {\"company\": \"Apple\", \"rev",
+          "error": "response was not valid JSON",
+          "latency_ms": 26240.1
+        },
+        "stream": {
+          "ok": false,
+          "status": 200,
+          "chunks": 24,
+          "error": null,
+          "latency_ms": 18063.6
+        },
+        "vision": {
+          "ok": true,
+          "status": 200,
+          "text": "The user is asking about the color of a pixel/image. Looking",
+          "error": null,
+          "latency_ms": 23488.0
+        }
+      },
+      "passed": [
+        "chat",
+        "tools",
+        "vision"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "capabilities": {
+          "vision": true,
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    }
+  ]
+}

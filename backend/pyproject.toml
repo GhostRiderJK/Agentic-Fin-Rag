@@ -1,0 +1,94 @@
+[project]
+name = "investment-research-backend"
+version = "0.1.0"
+description = "Investment Research Assistant — Agentic Financial Intelligence Platform (RAG)"
+requires-python = ">=3.10"
+readme = "../README.md"
+license = { text = "MIT" }
+
+dependencies = [
+  # Web / API
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "pydantic>=2.6",
+  "pydantic-settings>=2.2",
+  "python-multipart>=0.0.9",
+  # Database (MongoDB) — the FinRAG 2.0 primary store
+  "motor>=3.3",
+  "pymongo>=4.5",
+  # Legacy relational store. Still backs the un-migrated routes/services
+  # during the Step 2→N transition; removed once every consumer reads
+  # through app/db/mongodb. See docs/STATUS.md.
+  "sqlalchemy>=2.0",
+  "alembic>=1.13",
+  # Vector DB
+  "qdrant-client>=1.9",
+  # LLM providers
+  "openai>=1.30",
+  "anthropic>=0.28",
+  # Document parsing / OCR
+  "pypdf>=4.2",
+  "pdfplumber>=0.11",
+  "python-docx>=1.1",
+  "beautifulsoup4>=4.12",
+  "lxml>=5.1",
+  "pytesseract>=0.3.10",
+  "Pillow>=10.3",
+  "pdf2image>=1.17",
+  # Retrieval / NLP
+  "rank-bm25>=0.2.2",
+  "numpy>=1.26",
+  # Async / utils
+  "httpx>=0.27",
+  "tenacity>=8.2",
+  "python-jose[cryptography]>=3.3",
+  "passlib[bcrypt]>=1.7",
+  "rich>=13.7",
+  "typer>=0.12",
+  # Sentence-transformers optional — imported lazily
+]
+
+[project.optional-dependencies]
+local = [
+  "sentence-transformers>=2.7",
+  "torch>=2.2",
+]
+celery = [
+  "celery>=5.4",
+  "redis>=5.0",
+]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=5.0",
+  "httpx>=0.27",
+  "ruff>=0.4",
+  # In-memory async MongoDB for the isolation suite (no server required).
+  "mongomock-motor>=0.0.34",
+]
+
+[project.scripts]
+ira = "app.cli:app"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = ["integration: needs a real MongoDB (MONGODB_TEST_URL)"]
+filterwarnings = [
+  "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]

@@ -1,0 +1,2404 @@
+{
+  "base_url": "http://localhost:20128/v1",
+  "nvidia_model_count": 91,
+  "buckets": {
+    "chat": [
+      "nvidia/01-ai/yi-large",
+      "nvidia/adept/fuyu-8b",
+      "nvidia/ai21labs/jamba-1.5-large-instruct",
+      "nvidia/aisingapore/sea-lion-7b-instruct",
+      "nvidia/bigcode/starcoder2-15b",
+      "nvidia/databricks/dbrx-instruct",
+      "nvidia/deepseek-ai/deepseek-coder-6.7b-instruct",
+      "nvidia/deepseek-ai/deepseek-v4.1-flash",
+      "nvidia/google/codegemma-1.1-7b",
+      "nvidia/google/codegemma-7b",
+      "nvidia/google/deplot",
+      "nvidia/google/diffusiongemma-26b-a4b-it",
+      "nvidia/google/gemma-2b",
+      "nvidia/google/gemma-3-12b-it",
+      "nvidia/google/gemma-3-4b-it",
+      "nvidia/google/gemma-4-31b-it",
+      "nvidia/google/recurrentgemma-2b",
+      "nvidia/ibm/granite-3.0-3b-a800m-instruct",
+      "nvidia/ibm/granite-3.0-8b-instruct",
+      "nvidia/ibm/granite-34b-code-instruct",
+      "nvidia/ibm/granite-8b-code-instruct",
+      "nvidia/meta/codellama-70b",
+      "nvidia/meta/llama-3.2-11b-vision-instruct",
+      "nvidia/meta/llama-3.2-90b-vision-instruct",
+      "nvidia/meta/llama-guard-4-12b",
+      "nvidia/meta/llama2-70b",
+      "nvidia/meta/muse-glimmer-30b",
+      "nvidia/microsoft/kosmos-2",
+      "nvidia/microsoft/phi-3-vision-128k-instruct",
+      "nvidia/microsoft/phi-3.5-moe-instruct",
+      "nvidia/mistralai/codestral-22b-instruct-v0.1",
+      "nvidia/mistralai/mistral-7b-instruct-v0.3",
+      "nvidia/mistralai/mistral-large",
+      "nvidia/mistralai/mistral-large-2-instruct",
+      "nvidia/mistralai/mixtral-8x22b-v0.1",
+      "nvidia/moonshotai/kimi-k2.6",
+      "nvidia/nv-mistralai/mistral-nemo-12b-instruct",
+      "nvidia/nvidia/ai-synthetic-video-detector",
+      "nvidia/nvidia/cosmos-reason2-8b",
+      "nvidia/nvidia/embed-qa-4",
+      "nvidia/nvidia/ising-calibration-1.5-31b",
+      "nvidia/nvidia/llama-3.1-nemoguard-8b-content-safety",
+      "nvidia/nvidia/llama-3.1-nemoguard-8b-topic-control",
+      "nvidia/nvidia/llama-3.1-nemotron-51b-instruct",
+      "nvidia/nvidia/llama-3.1-nemotron-70b-instruct",
+      "nvidia/nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+      "nvidia/nvidia/llama-3.1-nemotron-ultra-253b-v1",
+      "nvidia/nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+      "nvidia/nvidia/llama-3.2-nv-embedqa-1b-v1",
+      "nvidia/nvidia/llama-nemotron-embed-vl-1b-v2",
+      "nvidia/nvidia/llama3-chatqa-1.5-70b",
+      "nvidia/nvidia/mistral-nemo-minitron-8b-8k-instruct",
+      "nvidia/nvidia/nemotron-3-embed-1b",
+      "nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      "nvidia/nvidia/nemotron-3-super-120b-a12b",
+      "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+      "nvidia/nvidia/nemotron-3.5-content-safety",
+      "nvidia/nvidia/nemotron-3.5-lightning-30b-a3b",
+      "nvidia/nvidia/nemotron-3.5-super-vl-120b-a12b",
+      "nvidia/nvidia/nemotron-4-340b-instruct",
+      "nvidia/nvidia/nemotron-4-340b-reward",
+      "nvidia/nvidia/nemotron-nano-3-30b-a3b",
+      "nvidia/nvidia/nemotron-parse",
+      "nvidia/nvidia/nemotron-parse-2.0",
+      "nvidia/nvidia/neva-22b",
+      "nvidia/nvidia/nv-embedqa-mistral-7b-v2",
+      "nvidia/nvidia/riva-translate-4b-instruct",
+      "nvidia/nvidia/riva-translate-4b-instruct-v2",
+      "nvidia/nvidia/vila",
+      "nvidia/openai/gpt-oss-20b",
+      "nvidia/poolside/laguna-xs-2.1",
+      "nvidia/snowflake/arctic-embed-l",
+      "nvidia/stepfun-ai/step-5-preview",
+      "nvidia/writer/palmyra-creative-122b",
+      "nvidia/writer/palmyra-fin-70b-32k",
+      "nvidia/writer/palmyra-med-70b",
+      "nvidia/writer/palmyra-med-70b-32k",
+      "nvidia/z-ai/glm-5.3",
+      "nvidia/z-ai/glm-5.3-flash",
+      "nvidia/zyphra/zamba2-7b-instruct"
+    ],
+    "vision": [
+      "nvidia/deepseek-ai/deepseek-v4.1-flash",
+      "nvidia/meta/llama-3.2-11b-vision-instruct",
+      "nvidia/meta/llama-3.2-90b-vision-instruct",
+      "nvidia/microsoft/phi-3-vision-128k-instruct",
+      "nvidia/moonshotai/kimi-k2.6",
+      "nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+      "nvidia/z-ai/glm-5.3",
+      "nvidia/z-ai/glm-5.3-flash"
+    ],
+    "embedding": [
+      "nvidia/nvidia/embed-qa-4",
+      "nvidia/nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+      "nvidia/nvidia/llama-3.2-nv-embedqa-1b-v1",
+      "nvidia/nvidia/llama-nemotron-embed-vl-1b-v2",
+      "nvidia/nvidia/nemotron-3-embed-1b",
+      "nvidia/nvidia/nv-embedqa-mistral-7b-v2",
+      "nvidia/snowflake/arctic-embed-l",
+      "nvidia/nv-embedqa-e5-v5"
+    ],
+    "rerank": [
+      "nvidia/nv-rerankqa-mistral-4b-v3"
+    ]
+  },
+  "results": [
+    {
+      "model": "nvidia/01-ai/yi-large",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/01-ai/yi-large] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "76a082d1-eefe-4691-b9e8-06aa4962f6ab",
+            "retry-after": "120"
+          },
+          "latency_ms": 2201.6
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/adept/fuyu-8b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/adept/fuyu-8b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "c40e50f1-d216-4109-8249-21c2d53b0971",
+            "retry-after": "120"
+          },
+          "latency_ms": 1823.5
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/ai21labs/jamba-1.5-large-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/ai21labs/jamba-1.5-large-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "6d53dd2a-88ab-4f83-8877-df855924bc50",
+            "retry-after": "120"
+          },
+          "latency_ms": 1096.5
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/aisingapore/sea-lion-7b-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/aisingapore/sea-lion-7b-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "604a5031-cded-4e8d-9c79-48be898e33c0",
+            "retry-after": "120"
+          },
+          "latency_ms": 1476.3
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/bigcode/starcoder2-15b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/bigcode/starcoder2-15b] [404]: 404 page not found (reset after 2m)",
+          "hints": {
+            "x-request-id": "41b93971-4f3c-4ac6-bb9b-ee7088f879aa",
+            "retry-after": "120"
+          },
+          "latency_ms": 1693.3
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/databricks/dbrx-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/databricks/dbrx-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "004af74f-21d0-4593-b261-4eb20c7bd51d",
+            "retry-after": "120"
+          },
+          "latency_ms": 1645.4
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/deepseek-ai/deepseek-coder-6.7b-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/deepseek-ai/deepseek-coder-6.7b-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "3be6fe95-4d33-407a-985f-ab1a57608aae",
+            "retry-after": "120"
+          },
+          "latency_ms": 1625.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/deepseek-ai/deepseek-v4.1-flash",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": null,
+          "error": "ReadTimeout: ",
+          "latency_ms": 60003.2
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 1048576,
+        "dimensions": null,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "capabilities": {
+          "vision": true,
+          "tool_calling": true,
+          "reasoning": true,
+          "thinking": true,
+          "supportsThinking": true,
+          "effort_tiers": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "attachment": true,
+          "structured_output": true,
+          "temperature": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/google/codegemma-1.1-7b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/google/codegemma-1.1-7b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "b8c17ddd-9bf9-41b3-9364-01f31db69ce3",
+            "retry-after": "120"
+          },
+          "latency_ms": 1096.4
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/google/codegemma-7b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/google/codegemma-7b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "8f84b883-273f-403c-a2c1-76eb1f8475c1",
+            "retry-after": "120"
+          },
+          "latency_ms": 1103.4
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/google/deplot",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/google/deplot] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "ffc54aa0-aa55-4b4b-92b5-b390baa08213",
+            "retry-after": "120"
+          },
+          "latency_ms": 1145.6
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/google/diffusiongemma-26b-a4b-it",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "google/diffusiongemma-26b-a4b-it",
+          "text": "FINRAG_OK",
+          "usage": {
+            "prompt_tokens": 22,
+            "completion_tokens": 6,
+            "total_tokens": 28,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "009b00ae-fca7-444e-8430-e99c25426c3e"
+          },
+          "latency_ms": 2469.0
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/google/gemma-2b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/google/gemma-2b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "b31220a6-89dc-4938-a972-d39bb9892d2f",
+            "retry-after": "120"
+          },
+          "latency_ms": 1778.5
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/google/gemma-3-12b-it",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/google/gemma-3-12b-it] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "f49253e0-99ed-490d-9ee7-475c957d48e6",
+            "retry-after": "120"
+          },
+          "latency_ms": 1517.7
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/google/gemma-3-4b-it",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/google/gemma-3-4b-it] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "117e3f40-eed8-408e-88a6-a366fe057a6f",
+            "retry-after": "120"
+          },
+          "latency_ms": 1749.5
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/google/gemma-4-31b-it",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": null,
+          "error": "ReadTimeout: ",
+          "latency_ms": 60010.1
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/google/recurrentgemma-2b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/google/recurrentgemma-2b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "75123d63-09e5-44a5-bdf6-9a118806b28c",
+            "retry-after": "120"
+          },
+          "latency_ms": 1052.9
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/ibm/granite-3.0-3b-a800m-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/ibm/granite-3.0-3b-a800m-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "7a64cb5a-ba61-450d-a3ca-83bc703a732d",
+            "retry-after": "120"
+          },
+          "latency_ms": 676.7
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/ibm/granite-3.0-8b-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/ibm/granite-3.0-8b-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "f26e7db2-c682-444d-b071-14cbacadf026",
+            "retry-after": "120"
+          },
+          "latency_ms": 703.6
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/ibm/granite-34b-code-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/ibm/granite-34b-code-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "ac0feb9f-a605-434b-8625-9dfe9b726474",
+            "retry-after": "120"
+          },
+          "latency_ms": 2434.7
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/ibm/granite-8b-code-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/ibm/granite-8b-code-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "8283fb95-5548-482d-a153-1aec879b635a",
+            "retry-after": "120"
+          },
+          "latency_ms": 682.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/meta/codellama-70b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/meta/codellama-70b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "2b3a0ab9-e6e5-45fd-ac02-2364a53c5c69",
+            "retry-after": "120"
+          },
+          "latency_ms": 349.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/meta/llama-3.2-11b-vision-instruct",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "meta/llama-3.2-11b-vision-instruct",
+          "text": "FINRAG_OK",
+          "usage": {
+            "prompt_tokens": 43,
+            "completion_tokens": 5,
+            "total_tokens": 48,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "a1dc8dbc-3017-4e0f-9a61-c7428d00e5ea"
+          },
+          "latency_ms": 613.7
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "capabilities": {
+          "vision": true,
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/meta/llama-3.2-90b-vision-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": null,
+          "error": "ReadTimeout: ",
+          "latency_ms": 60013.9
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "capabilities": {
+          "vision": true,
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/meta/llama-guard-4-12b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": null,
+          "error": "ReadTimeout: ",
+          "latency_ms": 60014.2
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/meta/llama2-70b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/meta/llama2-70b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "25cbee66-f412-4a15-9ff2-e5c486315cd2",
+            "retry-after": "120"
+          },
+          "latency_ms": 567.3
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/meta/muse-glimmer-30b",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "meta/muse-glimmer-30b",
+          "text": "Reply with exactly: FINRAG_OK\n\nWe need reply with",
+          "usage": {
+            "prompt_tokens": 64,
+            "completion_tokens": 16,
+            "total_tokens": 80,
+            "prompt_tokens_details": {
+              "audio_tokens": null,
+              "cached_tokens": 0
+            }
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "eb96d0f2-f7b0-4af4-a1b3-e520e6ad6d76"
+          },
+          "latency_ms": 40872.3
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/microsoft/kosmos-2",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/microsoft/kosmos-2] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "50e4d789-861e-49ae-9b43-6ba38935eefb",
+            "retry-after": "120"
+          },
+          "latency_ms": 536.9
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/microsoft/phi-3-vision-128k-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/microsoft/phi-3-vision-128k-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "eff9e86b-d44f-4a4a-8cd9-d70076f1ab68",
+            "retry-after": "120"
+          },
+          "latency_ms": 595.5
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "capabilities": {
+          "vision": true,
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/microsoft/phi-3.5-moe-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/microsoft/phi-3.5-moe-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "bec0c00a-d44b-4e78-9303-27f21f640746",
+            "retry-after": "120"
+          },
+          "latency_ms": 322.7
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/mistralai/codestral-22b-instruct-v0.1",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/mistralai/codestral-22b-instruct-v0.1] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "db2ebe25-86b7-40f5-b836-87f42cdb6eb5",
+            "retry-after": "120"
+          },
+          "latency_ms": 345.1
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/mistralai/mistral-7b-instruct-v0.3",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/mistralai/mistral-7b-instruct-v0.3] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "068065f1-fe3a-46ac-a57a-d5f98ee2554d",
+            "retry-after": "120"
+          },
+          "latency_ms": 346.0
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/mistralai/mistral-large",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/mistralai/mistral-large] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "7c432522-4a2a-4717-8c29-a8d4dd962168",
+            "retry-after": "120"
+          },
+          "latency_ms": 360.3
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/mistralai/mistral-large-2-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/mistralai/mistral-large-2-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "9e68e506-252c-4597-885a-715d88a05ba6",
+            "retry-after": "120"
+          },
+          "latency_ms": 324.9
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/mistralai/mixtral-8x22b-v0.1",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/mistralai/mixtral-8x22b-v0.1] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "8a587a60-1db6-43c8-bed0-76de90ab359e",
+            "retry-after": "120"
+          },
+          "latency_ms": 367.1
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/moonshotai/kimi-k2.6",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/moonshotai/kimi-k2.6] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "0d38494d-c713-4a49-8241-3543f15f6a9a",
+            "retry-after": "120"
+          },
+          "latency_ms": 378.0
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "capabilities": {
+          "vision": true,
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nv-mistralai/mistral-nemo-12b-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nv-mistralai/mistral-nemo-12b-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "459a56fd-21f7-403c-9c20-0d36c146710f",
+            "retry-after": "120"
+          },
+          "latency_ms": 309.2
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/ai-synthetic-video-detector",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 500,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "500: internal_server_error [500]: upstream error",
+          "hints": {
+            "x-request-id": "3529316c-6876-4959-a534-043c6410bac1"
+          },
+          "latency_ms": 617.7
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/cosmos-reason2-8b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/cosmos-reason2-8b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "ec4b2355-25ed-4499-ade5-6f1096ced1e9",
+            "retry-after": "120"
+          },
+          "latency_ms": 986.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/ising-calibration-1.5-31b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": null,
+          "error": "ReadTimeout: ",
+          "latency_ms": 60256.1
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/llama-3.1-nemoguard-8b-content-safety",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": null,
+          "error": "ReadTimeout: ",
+          "latency_ms": 60011.3
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/llama-3.1-nemoguard-8b-topic-control",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 500,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "500: internal_server_error [500]: upstream error",
+          "hints": {
+            "x-request-id": "21e19512-a512-4942-9b8c-faca877161fa"
+          },
+          "latency_ms": 790.9
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/llama-3.1-nemotron-51b-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/llama-3.1-nemotron-51b-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "3e06fae7-0083-41b6-916b-3d0463e6b8af",
+            "retry-after": "120"
+          },
+          "latency_ms": 336.2
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/llama-3.1-nemotron-70b-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/llama-3.1-nemotron-70b-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "f1d24003-615f-4bef-ba5d-ff77ce8561be",
+            "retry-after": "120"
+          },
+          "latency_ms": 4314.7
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+          "text": "{\"User Safety\": \"safe\"}",
+          "usage": {
+            "prompt_tokens": 403,
+            "completion_tokens": 9,
+            "total_tokens": 412,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "f200c9a7-4fc7-4dfa-9d97-a8c088424d34"
+          },
+          "latency_ms": 655.1
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/llama-3.1-nemotron-ultra-253b-v1",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/llama-3.1-nemotron-ultra-253b-v1] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "2d8e82b8-f68b-43b6-90c8-60358f4a948d",
+            "retry-after": "120"
+          },
+          "latency_ms": 553.0
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/llama3-chatqa-1.5-70b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/llama3-chatqa-1.5-70b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "861de326-a0af-4713-b84b-a194dfd7c0e3",
+            "retry-after": "120"
+          },
+          "latency_ms": 371.5
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/mistral-nemo-minitron-8b-8k-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/mistral-nemo-minitron-8b-8k-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "65ef6c71-844a-413b-a11e-a7b74c0ec31e",
+            "retry-after": "120"
+          },
+          "latency_ms": 322.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 503,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "503: None [nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning] [503]: ResourceExhausted: Worker local total request limit reached (16/16) (reset aft",
+          "hints": {
+            "x-request-id": "b43257f5-f78e-42e7-a8c0-1486a532b7bb",
+            "retry-after": "8"
+          },
+          "latency_ms": 11345.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "capabilities": {
+          "vision": true,
+          "tool_calling": true,
+          "reasoning": true,
+          "thinking": true,
+          "supportsThinking": true,
+          "effort_tiers": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-3-super-120b-a12b",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "nvidia/nemotron-3-super-120b-a12b",
+          "text": "We need to reply exactly with \"FINRAG_OK\". No extra spaces or",
+          "usage": {
+            "prompt_tokens": 24,
+            "completion_tokens": 16,
+            "total_tokens": 40,
+            "prompt_tokens_details": {
+              "audio_tokens": null,
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": null,
+              "audio_tokens": null,
+              "reasoning_tokens": 16,
+              "rejected_prediction_tokens": null
+            }
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "383c5735-6195-4559-bcf9-dace1bfa24cd"
+          },
+          "latency_ms": 885.4
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 1000000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/nemotron-3-ultra-550b-a55b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "11fce2b9-dab8-4aa5-ad7a-f46b2e541114",
+            "retry-after": "120"
+          },
+          "latency_ms": 264.3
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 1048576,
+        "dimensions": null,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "capabilities": {
+          "vision": true,
+          "tool_calling": true,
+          "reasoning": true,
+          "thinking": true,
+          "supportsThinking": true,
+          "effort_tiers": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "attachment": true,
+          "structured_output": true,
+          "temperature": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-3.5-content-safety",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "nvidia/nemotron-3.5-content-safety",
+          "text": "User Safety: safe",
+          "usage": {
+            "prompt_tokens": 475,
+            "completion_tokens": 5,
+            "total_tokens": 480,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "303d57b5-852a-411b-97bd-73e78be6d9f2"
+          },
+          "latency_ms": 757.5
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-3.5-lightning-30b-a3b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": null,
+          "error": "ReadTimeout: ",
+          "latency_ms": 60010.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 1000000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-3.5-super-vl-120b-a12b",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+          "text": "The user wants me to reply with exactly \"FINRAG_OK\". No extra",
+          "usage": {
+            "prompt_tokens": 24,
+            "completion_tokens": 16,
+            "total_tokens": 40,
+            "prompt_tokens_details": {
+              "audio_tokens": null,
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": null,
+              "audio_tokens": null,
+              "reasoning_tokens": 16,
+              "rejected_prediction_tokens": null
+            }
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "94385775-5e03-40cf-930b-bd1c653e2797"
+          },
+          "latency_ms": 593.2
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-4-340b-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/nemotron-4-340b-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "ca620fe3-8b63-4caf-b57e-16b0bf45a711",
+            "retry-after": "120"
+          },
+          "latency_ms": 465.7
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-4-340b-reward",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/nemotron-4-340b-reward] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "9455ce70-70e7-456a-b98e-53fe1b350340",
+            "retry-after": "120"
+          },
+          "latency_ms": 289.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-nano-3-30b-a3b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/nemotron-nano-3-30b-a3b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "a1adaba0-1278-4d90-91c2-9dcdd3f69312",
+            "retry-after": "120"
+          },
+          "latency_ms": 352.2
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-parse",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 400,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "400: {\"object\":\"error\",\"message\":\"Content cannot be a plain string. The model does not support text input. Content cannot be a plain string. The ",
+          "hints": {
+            "x-request-id": "b1e37d55-f7e1-4378-8c4d-23d0c5bce666"
+          },
+          "latency_ms": 472.9
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nemotron-parse-2.0",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "nvidia/nemotron-parse-2.0",
+          "text": "**25036666666666",
+          "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 16,
+            "total_tokens": 26,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "a34b9e81-98b6-4a26-9543-8faad586903f"
+          },
+          "latency_ms": 464.2
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/neva-22b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/neva-22b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "344103c8-bcbe-4a29-a6e3-a1493760b557",
+            "retry-after": "120"
+          },
+          "latency_ms": 316.7
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/nvclip",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/nvclip] [404]: 404 page not found (reset after 2m)",
+          "hints": {
+            "x-request-id": "ede941d3-c528-42bb-8ac5-c1236deb841e",
+            "retry-after": "120"
+          },
+          "latency_ms": 350.2
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/riva-translate-4b-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/riva-translate-4b-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "aa56f9e4-2dd6-4167-80c9-47ef82a3baaa",
+            "retry-after": "120"
+          },
+          "latency_ms": 15828.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/riva-translate-4b-instruct-v2",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "nvidia/riva-translate-4b-instruct-v2",
+          "text": "Reply with exactly: FINRAG_OK",
+          "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 9,
+            "total_tokens": 30,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "61af8da5-02cb-442c-8c59-9a37c2fdd838"
+          },
+          "latency_ms": 865.1
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/nvidia/vila",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/nvidia/vila] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "13f91d06-5b81-4189-abd0-9796669c5f3a",
+            "retry-after": "120"
+          },
+          "latency_ms": 3024.7
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/openai/gpt-oss-20b",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "openai/gpt-oss-20b",
+          "text": "The user says: \"Reply with exactly: FINRAG_OK",
+          "usage": {
+            "prompt_tokens": 73,
+            "completion_tokens": 16,
+            "total_tokens": 89,
+            "prompt_tokens_details": null
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "5ec1644e-e701-4551-9b00-e3b5042766c8"
+          },
+          "latency_ms": 1006.4
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 400000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/poolside/laguna-xs-2.1",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "poolside/laguna-xs-2.1",
+          "text": "FINRAG_OK",
+          "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 5,
+            "total_tokens": 26
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "57d48ecf-82e1-47f9-9a07-345042caf888"
+          },
+          "latency_ms": 5390.5
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/stepfun-ai/step-5-preview",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "stepfun-ai/step-5-preview",
+          "text": "The user wants me to reply with exactly \"FINRAG_OK\". This is",
+          "usage": {
+            "prompt_tokens": 19,
+            "completion_tokens": 16,
+            "total_tokens": 35,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            }
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "9df8c3e9-898e-4e51-8adc-0ce937de4686"
+          },
+          "latency_ms": 5041.2
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/writer/palmyra-creative-122b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/writer/palmyra-creative-122b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "8d7c7411-aac3-43fc-9738-ea042b761e80",
+            "retry-after": "120"
+          },
+          "latency_ms": 680.9
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/writer/palmyra-fin-70b-32k",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/writer/palmyra-fin-70b-32k] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "81e5f5d5-2b6c-44bc-8983-e1d1482c4b9e",
+            "retry-after": "120"
+          },
+          "latency_ms": 386.4
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/writer/palmyra-med-70b",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/writer/palmyra-med-70b] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "16499936-17aa-446a-8c1e-9a6f84e04389",
+            "retry-after": "120"
+          },
+          "latency_ms": 325.9
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/writer/palmyra-med-70b-32k",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/writer/palmyra-med-70b-32k] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "e8b2bf0a-f5cf-4c5d-b99f-1608010458cf",
+            "retry-after": "120"
+          },
+          "latency_ms": 452.9
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/z-ai/glm-5.3",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": null,
+          "error": "ReadTimeout: ",
+          "latency_ms": 60015.5
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 1048576,
+        "dimensions": null,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "capabilities": {
+          "vision": true,
+          "tool_calling": true,
+          "reasoning": true,
+          "thinking": true,
+          "supportsThinking": true,
+          "effort_tiers": [],
+          "attachment": true,
+          "structured_output": true,
+          "temperature": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/z-ai/glm-5.3-flash",
+      "results": {
+        "chat": {
+          "ok": true,
+          "status": 200,
+          "returned_model": "z-ai/glm-5.3-flash",
+          "text": "The user has sent a message asking me to reply with exactly \"FINRAG",
+          "usage": {
+            "prompt_tokens": 20,
+            "completion_tokens": 16,
+            "total_tokens": 36,
+            "prompt_tokens_details": {
+              "audio_tokens": null,
+              "cached_tokens": 0
+            },
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": null,
+              "audio_tokens": null,
+              "reasoning_tokens": 16,
+              "rejected_prediction_tokens": null
+            }
+          },
+          "error": null,
+          "hints": {
+            "x-omniroute-provider": "nvidia",
+            "x-request-id": "1c572965-86de-4d4c-862d-943fa637b532"
+          },
+          "latency_ms": 30040.0
+        }
+      },
+      "passed": [
+        "chat"
+      ],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "capabilities": {
+          "vision": true,
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    },
+    {
+      "model": "nvidia/zyphra/zamba2-7b-instruct",
+      "results": {
+        "chat": {
+          "ok": false,
+          "status": 404,
+          "returned_model": null,
+          "text": "",
+          "usage": null,
+          "error": "404: None [nvidia/zyphra/zamba2-7b-instruct] [404]: upstream error (reset after 2m)",
+          "hints": {
+            "x-request-id": "20ffbc1b-cc56-49ef-b066-c5e78d1cad52",
+            "retry-after": "120"
+          },
+          "latency_ms": 265.8
+        }
+      },
+      "passed": [],
+      "declared": {
+        "type": null,
+        "context_length": 128000,
+        "dimensions": null,
+        "input_modalities": null,
+        "capabilities": {
+          "tool_calling": true,
+          "reasoning": true
+        }
+      }
+    }
+  ]
+}
