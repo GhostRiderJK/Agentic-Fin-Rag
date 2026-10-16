@@ -74,3 +74,13 @@ def _isolated_env(tmp_path_factory):
     reset_reranker()
     reset_vectordb()
     yield
+    # Close the file-backed local Qdrant client here rather than letting its
+    # destructor run during interpreter shutdown, when the import system is
+    # already torn down and the close prints an unrelated ImportError.
+    from app.providers import vectordb as _vdb
+
+    client = getattr(_vdb._vdb_singleton, "_client", None)
+    close = getattr(client, "close", None)
+    if callable(close):
+        close()
+    _vdb.reset_vectordb()
