@@ -130,3 +130,69 @@ def _open_real(run):
         admin.close()
 
     return database, close
+
+# ---------------------------------------------------------------------------
+# Shared fixtures
+#
+# Test modules import these (`from mongo_support import db, run, ...`) rather
+# than redefining them, so the mock/real policy, the loop handling and the
+# REQUIRE_MONGO enforcement live in exactly one place.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def run():
+    """Drive coroutines on one private loop for the whole test."""
+    loop = asyncio.new_event_loop()
+    try:
+        yield loop.run_until_complete
+    finally:
+        loop.close()
+
+
+@pytest.fixture(params=["mock", pytest.param("real", marks=pytest.mark.integration)])
+def db(request, run):
+    """A throwaway database on mongomock-motor, then on the real server."""
+    if request.param == "mock":
+        mongomock_motor = pytest.importorskip(
+            "mongomock_motor", reason="mongomock-motor not installed"
+        )
+        database = mongomock_motor.AsyncMongoMockClient().get_database(
+            f"finrag_test_{uuid.uuid4().hex}"
+        )
+        set_test_database(database)
+        try:
+            yield database
+        finally:
+            set_test_database(None)
+        return
+    database, close = _open_real(run)
+    try:
+        yield database
+    finally:
+        close()
+
+
+@pytest.fixture()
+def real_db(run):
+    """Real server only (for behaviour mongomock cannot reproduce)."""
+    database, close = _open_real(run)
+    try:
+        yield database
+    finally:
+        close()
+
+
+@pytest.fixture()
+def ctx_a() -> TenantContext:
+    return TenantContext(tenant_id="tenant-AAA", user_id="user-a1")
+
+
+@pytest.fixture()
+def ctx_b() -> TenantContext:
+    return TenantContext(tenant_id="tenant-BBB", user_id="user-b1")
+
+
+@pytest.fixture()
+def ctx_root() -> TenantContext:
+    return TenantContext(tenant_id="platform", user_id="root-1", is_super_admin=True)

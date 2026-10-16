@@ -21,9 +21,7 @@ The tests are plain sync functions driving one private event loop per test
 
 from __future__ import annotations
 
-import asyncio
 import os
-import uuid
 from decimal import Decimal
 
 import pytest
@@ -34,7 +32,6 @@ from bson.decimal128 import Decimal128  # noqa: E402
 
 from app.db.mongodb import collections as C  # noqa: E402
 from app.db.mongodb.base_repository import AuditWriteError, BaseRepository  # noqa: E402
-from app.db.mongodb.client import set_test_database  # noqa: E402
 from app.db.mongodb.decimal_codec import DecimalFieldError  # noqa: E402
 from app.db.mongodb.pipeline_guard import PipelineGuardError  # noqa: E402
 from app.db.mongodb.repositories import (  # noqa: E402
@@ -42,27 +39,12 @@ from app.db.mongodb.repositories import (  # noqa: E402
     DocumentRepository,
     UserRepository,
 )
-from app.db.mongodb.tenant_context import TenantContext  # noqa: E402
 
 # Check if tests/__init__.py exists to determine import style
 if not os.path.exists(os.path.join(os.path.dirname(__file__), '__init__.py')):
-    from mongo_support import (
-        DEFAULT_URL,
-        _PROBES,
-        _unreachable_reason,
-        enforce_reachable,
-        run_db,
-        _open_real,
-    )
+    from mongo_support import ctx_a, ctx_b, ctx_root, db, real_db, run, run_db
 else:
-    from tests.mongo_support import (
-        DEFAULT_URL,
-        _PROBES,
-        _unreachable_reason,
-        enforce_reachable,
-        run_db,
-        _open_real,
-    )
+    from tests.mongo_support import ctx_a, ctx_b, ctx_root, db, real_db, run, run_db
 
 
 class LedgerRepository(BaseRepository):
@@ -73,137 +55,8 @@ class LedgerRepository(BaseRepository):
 
 
 # ---------------------------------------------------------------------------
-# Fixtures
+# Fixtures (shared with the isolation suite via mongo_support)
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def run():
-    """Drive coroutines on one private loop for the whole test."""
-    loop = asyncio.new_event_loop()
-    try:
-        yield loop.run_until_complete
-    finally:
-        loop.close()
-
-
-_PROBES: dict = {}
-
-
-def _unreachable_reason(pymongo, url):
-    """None when the server answers, otherwise a short reason.
-
-    Cached for the session so a missing server costs one timeout in total
-    instead of one per test.
-    """
-    if url not in _PROBES:
-        probe = pymongo.MongoClient(url, serverSelectionTimeoutMS=2000)
-        try:
-            probe.admin.command("ping")
-            _PROBES[url] = None
-        except Exception as exc:
-            _PROBES[url] = (str(exc).splitlines() or [type(exc).__name__])[0][:120]
-        finally:
-            probe.close()
-    return _PROBES[url]
-
-
-def run_db(run, make_awaitable):
-    """Call a raw Motor method *inside* the running loop.
-
-    Motor binds to the event loop that is current at its first call. Writing
-    ``run(db[...].method(...))`` evaluates the method before the loop is
-    running, which can bind Motor to the wrong loop. Repository methods are
-    coroutines and are safe; direct database calls must go through here.
-    """
-
-    async def _go():
-        return await make_awaitable()
-
-    return run(_go())
-
-
-def _open_real(run):
-    pymongo = pytest.importorskip("pymongo")
-    motor = pytest.importorskip("motor.motor_asyncio")
-    url = os.environ.get("MONGODB_TEST_URL", DEFAULT_URL)
-    reason = _unreachable_reason(pymongo, url)
-    enforce_reachable(url, reason)
-    admin = pymongo.MongoClient(url, serverSelectionTimeoutMS=3000)
-
-    name = f"finrag_test_{uuid.uuid4().hex}"
-
-    async def _connect():
-        # Created inside the running loop so Motor binds to it.
-        return motor.AsyncIOMotorClient(
-            url, serverSelectionTimeoutMS=3000, uuidRepresentation="standard"
-        )
-
-    client = run(_connect())
-    database = client[name]
-    set_test_database(database)
-    hello = admin.admin.command("hello")
-    print(
-        f"\n[integration] url={url} database={name} "
-        f"version={admin.server_info().get('version')} "
-        f"setName={hello.get('setName')} "
-        f"isWritablePrimary={hello.get('isWritablePrimary')}"
-    )
-
-    def close():
-        set_test_database(None)
-        client.close()
-        admin.drop_database(name)  # only the throwaway database
-        admin.close()
-
-    return database, close
-
-
-@pytest.fixture(params=["mock", pytest.param("real", marks=pytest.mark.integration)])
-def db(request, run):
-    if request.param == "mock":
-        mongomock_motor = pytest.importorskip(
-            "mongomock_motor", reason="mongomock-motor not installed"
-        )
-        database = mongomock_motor.AsyncMongoMockClient().get_database(
-            f"finrag_test_{uuid.uuid4().hex}"
-        )
-        set_test_database(database)
-        try:
-            yield database
-        finally:
-            set_test_database(None)
-        return
-    database, close = _open_real(run)
-    try:
-        yield database
-    finally:
-        close()
-
-
-@pytest.fixture()
-def real_db(run):
-    """Real server only (for behaviour mongomock cannot reproduce)."""
-    database, close = _open_real(run)
-    try:
-        yield database
-    finally:
-        close()
-
-
-@pytest.fixture()
-def ctx_a() -> TenantContext:
-    return TenantContext(tenant_id="tenant-AAA", user_id="user-a1")
-
-
-@pytest.fixture()
-def ctx_b() -> TenantContext:
-    return TenantContext(tenant_id="tenant-BBB", user_id="user-b1")
-
-
-@pytest.fixture()
-def ctx_root() -> TenantContext:
-    return TenantContext(tenant_id="platform", user_id="root-1", is_super_admin=True)
 
 
 def audit_entries(run, database):
