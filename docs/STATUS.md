@@ -17,7 +17,7 @@ code and services on this machine, not against a plan.
 ## Test suite
 
 > Snapshot of the pre-round baseline. Current count, with `mongo-test` running
-> and `REQUIRE_MONGO` on: **317 passed, 0 skipped.** See *Round progress* below.
+> and `REQUIRE_MONGO=1`: **756 passed, 0 skipped.** See *Round progress* below.
 
 `305 passed, 0 skipped` from `backend/` with `.venv/Scripts/python.exe -m pytest`.
 
@@ -193,6 +193,59 @@ Two defects fixed while getting there:
 mongo suites (isolation + matrix + hardening)  ->  541 passed
 whole backend suite, mongo-test up             ->  733 passed, 0 skipped
 ```
+
+### (d) Decimal128 on every money/ratio repository — DONE, verified
+
+The codec in `app/db/mongodb/decimal_codec.py` only enforces what a repository
+*names* in `decimal_fields`; an undeclared column is stored as a float and no
+error is raised anywhere. So the declarations are the feature, and they are now
+on the two repositories that hold money or ratios:
+
+- `StructuredFinancialRepository.decimal_fields = {"value", "confidence"}` —
+  `value` is money or a ratio depending on the metric, `confidence` is a 0..1
+  ratio.
+- `JobRepository.decimal_fields = {"progress"}` — a 0..1 ratio that is compared
+  and reported to users.
+
+That is the complete set. Every other numeric column in the legacy SQL schema
+is `Integer`/`BigInteger` (`token_count`, `page_count`, counters) and correctly
+stays a Python `int`; nothing there was converted.
+
+New `tests/test_decimal_fields.py` (13 tests, 23 cases once the mock/real
+pairing is applied) proves the behaviour rather than the intent:
+
+- round trip keeps the *scale*, not just the value — `Decimal("1234.5600")`
+  reads back with `str(...) == "1234.5600"`, which silent normalisation would
+  break, and the stored BSON type is `Decimal128` (read bypassing the repo).
+- a `float` is refused on insert (`value` and `confidence`), on filter
+  (`{"value": 1234.56}`) and on `$set` update, and the refused insert leaves
+  the collection empty — no partial write.
+- `bool` and `NaN` are refused; a value with more than 34 significant digits is
+  refused rather than rounded.
+- `{"$sum": "$value"}` over `0.1` and `0.2` is exactly `0.3` in aggregation.
+- `get_metric` returns `Decimal`, not `float`.
+- **drift guard**: every `sa.Float` column in `app/db/models.py` must appear in
+  some repository's `decimal_fields` under the same `collection.field` name.
+  Adding a float money column without deciding its Mongo counterpart fails
+  here. It retires with the SQLAlchemy layer at item (i).
+
+Mutation-checked: setting both `decimal_fields` to `frozenset()` produced
+**15 failures** in this file, so the passes are signal.
+
+The matrix and `test_mongo_isolation.py` financial/job payloads were switched to
+`Decimal` accordingly — they had been seeding floats, which the codec would have
+rejected the moment the declarations landed.
+
+```
+mongo suites (isolation + matrix + hardening + decimal)  ->  564 passed
+whole backend suite, REQUIRE_MONGO=1, mongo-test up      ->  756 passed, 0 skipped
+```
+
+Not yet integrated: no route writes through these two repositories today (the
+SQL-era writers in `app/ingestion/pipeline.py`, `app/seed/seed_financials.py`
+and `app/jobs/queue.py` still go through SQLAlchemy), so the declarations
+cannot break a live path — they take effect for the Mongo readers that arrive
+with items (e) and (f).
 
 ### Checkpoint decisions 2 and 4 — DONE, verified
 
