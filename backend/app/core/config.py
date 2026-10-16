@@ -20,7 +20,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, List, Literal
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 log = logging.getLogger(__name__)
@@ -91,14 +91,15 @@ class Settings(BaseSettings):
     # (with a warning) by _normalise_llm_provider before validation.
     llm_provider: Literal["openai", "anthropic", "ollama", "stub", "omniroute"] = "stub"
 
-    # OmniRoute gateway.
+    # OmniRoute gateway. LLM_BASE_URL / LLM_API_KEY are the preferred names and
+    # win when both are present; OMNIROUTE_* is accepted unchanged.
     omniroute_base_url: str = Field(
         default="http://127.0.0.1:20128/v1",
-        validation_alias="OMNIROUTE_BASE_URL",
+        validation_alias=AliasChoices("LLM_BASE_URL", "OMNIROUTE_BASE_URL"),
     )
     omniroute_api_key: SecretStr = Field(
         default=SecretStr(""),
-        validation_alias="OMNIROUTE_API_KEY",
+        validation_alias=AliasChoices("LLM_API_KEY", "OMNIROUTE_API_KEY"),
     )
 
     # Deprecated misspellings from an earlier revision, kept so existing .env
@@ -113,15 +114,22 @@ class Settings(BaseSettings):
         default=None, validation_alias="OMNIRROUTE_API_KEY", exclude=True, repr=False
     )
 
-    # Model configuration: pinned IDs, never "auto" routing
+    # Model configuration: pinned IDs, never "auto" routing. These defaults are
+    # the ids measured live against the gateway (docs/gateway-deep-probe.json);
+    # nemotron-3-ultra-550b is advertised but upstream-dead, so it is not here.
     chat_model: str = "nvidia/nvidia/nemotron-3-super-120b-a12b"
-    reasoning_model: str = "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
-    vision_model: str = ""      # to be configured
-    embedding_model: str = ""   # to be configured (may be local)
-    rerank_model: str = ""      # to be configured
+    reasoning_model: str = "nvidia/nvidia/nemotron-3-super-120b-a12b"
+    vision_model: str = "nvidia/meta/llama-3.2-11b-vision-instruct"
+    embedding_model: str = "ollama/nomic-embed-text"
+    rerank_model: str = ""      # gateway offers no working rerank model
 
-    # Explicit pinned fallback chain, comma-separated
-    fallback_chain: str = "nvidia/nvidia/nemotron-3-super-120b-a12b,ollama/llama3.1"
+    # Explicit pinned fallback chain, comma-separated, in preference order
+    fallback_chain: str = (
+        "nvidia/nvidia/nemotron-3-super-120b-a12b,"
+        "nvidia/poolside/laguna-xs-2.1,"
+        "nvidia/stepfun-ai/step-5-preview,"
+        "ollama/llama3.1"
+    )
 
     # Providers allowed to receive tenant data, comma-separated
     allowed_providers: str = "nvidia,ollama"
@@ -136,10 +144,26 @@ class Settings(BaseSettings):
         """Parse allowed_providers string into list."""
         return [p.strip() for p in self.allowed_providers.split(",") if p.strip()]
 
-    # Embeddings
-    embeddings_provider: Literal["openai", "stub", "sentence_transformers"] = "stub"
-    embeddings_dim: int = 1536
-    sentence_transformer_model: str = "BAAI/bge-small-en-v1.5"
+    # Direct provider connections, used when LLM_PROVIDER names one of them
+    # rather than the gateway. These are read by app/providers/* and were
+    # missing from Settings, so selecting those providers raised AttributeError.
+    openai_api_key: SecretStr = SecretStr("")
+    openai_chat_model: str = "gpt-4o-mini"
+    openai_embedding_model: str = "text-embedding-3-small"
+    anthropic_api_key: SecretStr = SecretStr("")
+    anthropic_chat_model: str = "claude-sonnet-4-5"
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    ollama_chat_model: str = "llama3.1"
+    embedding_request_timeout_seconds: float = 120.0
+
+    # Embeddings. Local Ollama is the embedding source for this project;
+    # sentence-transformers is deliberately not a dependency.
+    embeddings_provider: Literal["openai", "stub", "ollama"] = "stub"
+    embeddings_dim: int = Field(
+        default=768,
+        validation_alias=AliasChoices("EMBEDDING_DIM", "EMBEDDINGS_DIM"),
+        description="Must match the output width of EMBEDDING_MODEL.",
+    )
 
     # Reranker
     reranker_provider: Literal["stub", "cohere", "cross_encoder"] = "stub"
@@ -217,9 +241,15 @@ class Settings(BaseSettings):
             return
         problems: List[str] = []
         if not self.omniroute_api_key.get_secret_value():
-            problems.append("OMNIROUTE_API_KEY must be set when LLM_PROVIDER=omniroute")
+            problems.append(
+                "LLM_API_KEY (or OMNIROUTE_API_KEY) must be set when "
+                "LLM_PROVIDER=omniroute"
+            )
         if not self.omniroute_base_url:
-            problems.append("OMNIROUTE_BASE_URL must be set when LLM_PROVIDER=omniroute")
+            problems.append(
+                "LLM_BASE_URL (or OMNIROUTE_BASE_URL) must be set when "
+                "LLM_PROVIDER=omniroute"
+            )
         if not self.chat_model:
             problems.append("CHAT_MODEL must be set when LLM_PROVIDER=omniroute")
         if not self.reasoning_model:

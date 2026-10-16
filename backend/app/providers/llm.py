@@ -273,9 +273,10 @@ class OpenAIChatLLM(BaseLLM):
         except ImportError as e:  # pragma: no cover
             raise ProviderError("openai package not installed") from e
         settings = get_settings()
-        if not settings.openai_api_key:
+        api_key = settings.openai_api_key.get_secret_value()
+        if not api_key:
             raise ProviderError("OPENAI_API_KEY is not set")
-        self._client = OpenAI(api_key=settings.openai_api_key)
+        self._client = OpenAI(api_key=api_key)
         self._model = settings.openai_chat_model
 
     def chat(self, messages, *, tools=None, temperature=0.2, max_tokens=None, stop=None):
@@ -411,9 +412,10 @@ class AnthropicLLM(BaseLLM):
         except ImportError as e:  # pragma: no cover
             raise ProviderError("anthropic package not installed") from e
         settings = get_settings()
-        if not settings.anthropic_api_key:
+        api_key = settings.anthropic_api_key.get_secret_value()
+        if not api_key:
             raise ProviderError("ANTHROPIC_API_KEY is not set")
-        self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        self._client = anthropic.Anthropic(api_key=api_key)
         self._model = settings.anthropic_chat_model
 
     def chat(self, messages, *, tools=None, temperature=0.2, max_tokens=2048, stop=None):
@@ -483,14 +485,14 @@ def get_llm() -> BaseLLM:
     provider = settings.llm_provider
 
     if provider == "openai":
-        if not settings.openai_api_key:
+        if not settings.openai_api_key.get_secret_value():
             log.warning("LLM_PROVIDER=openai but OPENAI_API_KEY unset; "
                         "falling back to stub LLM")
             _llm_singleton = StubLLM()
             return _llm_singleton
         _llm_singleton = OpenAIChatLLM()
     elif provider == "anthropic":
-        if not settings.anthropic_api_key:
+        if not settings.anthropic_api_key.get_secret_value():
             log.warning("LLM_PROVIDER=anthropic but key unset; using stub")
             _llm_singleton = StubLLM()
         else:

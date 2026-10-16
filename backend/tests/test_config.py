@@ -19,13 +19,20 @@ LOGGER = "app.core.config"
 _CONFIG_ENV_VARS = (
     "APP_ENV",
     "LLM_PROVIDER",
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
     "OMNIROUTE_API_KEY",
     "OMNIROUTE_BASE_URL",
     "OMNIRROUTE_API_KEY",
     "OMNIRROUTE_BASE_URL",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
     "CHAT_MODEL",
     "REASONING_MODEL",
     "VISION_MODEL",
+    "EMBEDDING_MODEL",
+    "EMBEDDING_DIM",
+    "EMBEDDINGS_DIM",
     "FALLBACK_CHAIN",
     "ALLOWED_PROVIDERS",
     "JWT_SECRET",
@@ -152,6 +159,56 @@ def test_correct_name_wins_when_both_names_are_set(make_settings):
     )
     assert s.omniroute_api_key.get_secret_value() == "new-key"
     assert "old-key" not in repr(s)
+
+
+# -- pinned model configuration ---------------------------------------------
+
+
+def test_llm_names_are_accepted_as_gateway_aliases(make_settings):
+    s = make_settings(
+        **_omniroute_env(LLM_API_KEY="llm-name", LLM_BASE_URL="http://gw:1/v1")
+    )
+    assert s.omniroute_api_key.get_secret_value() == "llm-name"
+    assert s.omniroute_base_url == "http://gw:1/v1"
+
+
+def test_preferred_llm_name_wins_over_the_omniroute_name(make_settings):
+    s = make_settings(
+        LLM_PROVIDER="omniroute",
+        LLM_API_KEY="preferred",
+        OMNIROUTE_API_KEY="legacy",
+    )
+    assert s.omniroute_api_key.get_secret_value() == "preferred"
+    assert "legacy" not in repr(s)
+
+
+def test_defaults_pin_the_measured_models(make_settings):
+    """nemotron-3-ultra-550b is advertised by the gateway but dead upstream.
+
+    A default that names it costs every request its timeout budget before
+    falling back, so the defaults are asserted here instead of left to drift.
+    """
+    s = make_settings()
+    assert s.chat_model == "nvidia/nvidia/nemotron-3-super-120b-a12b"
+    assert s.reasoning_model == s.chat_model
+    assert "ultra" not in s.reasoning_model
+    assert s.vision_model == "nvidia/meta/llama-3.2-11b-vision-instruct"
+    assert s.fallback_chain_list == [
+        "nvidia/nvidia/nemotron-3-super-120b-a12b",
+        "nvidia/poolside/laguna-xs-2.1",
+        "nvidia/stepfun-ai/step-5-preview",
+        "ollama/llama3.1",
+    ]
+    assert s.embedding_model == "ollama/nomic-embed-text"
+    assert s.embeddings_dim == 768
+
+
+def test_embedding_dim_prefers_the_short_name(make_settings):
+    assert make_settings(EMBEDDING_DIM="1024").embeddings_dim == 1024
+
+
+def test_embedding_dim_accepts_the_plural_legacy_name(make_settings):
+    assert make_settings(EMBEDDINGS_DIM="512").embeddings_dim == 512
 
 
 # -- precedence -------------------------------------------------------------

@@ -1,9 +1,9 @@
 """Embeddings provider abstraction.
 
 Implementations:
-  - OpenAIEmbeddings   (default when key set)
+  - OllamaEmbeddings   (local /api/embed; the project's embedding source)
+  - OpenAIEmbeddings   (used when a hosted key is configured)
   - StubEmbeddings     (deterministic hash-based vectors, dim configurable)
-  - SentenceTransformerEmbeddings (optional, local model — lazy import)
 
 Stub vectors are deterministic per-token hash projections so that:
   * similar texts produce vectors with high cosine similarity,
@@ -94,9 +94,10 @@ class OpenAIEmbeddings:
         except ImportError as e:  # pragma: no cover
             raise ProviderError("openai package not installed") from e
         settings = get_settings()
-        if not settings.openai_api_key:
+        api_key = settings.openai_api_key.get_secret_value()
+        if not api_key:
             raise ProviderError("OPENAI_API_KEY is not set")
-        self._client = OpenAI(api_key=settings.openai_api_key)
+        self._client = OpenAI(api_key=api_key)
         self._model = settings.openai_embedding_model
         self.dim = settings.embeddings_dim
 
@@ -113,27 +114,87 @@ class OpenAIEmbeddings:
 
 
 # ---------------------------------------------------------------------------
-# Sentence-transformers (lazy)
+# Ollama
 # ---------------------------------------------------------------------------
 
 
-class SentenceTransformerEmbeddings:
-    name = "sentence_transformers"
+class OllamaEmbeddings:
+    """Local Ollama embeddings through the native ``/api/embed`` route.
 
-    def __init__(self) -> None:
-        try:
-            from sentence_transformers import SentenceTransformer
-        except ImportError as e:  # pragma: no cover
-            raise ProviderError("sentence-transformers not installed") from e
+    ``EMBEDDING_MODEL`` may carry the ``ollama/`` role prefix used by
+    FALLBACK_CHAIN; Ollama itself wants the bare tag.
+    """
+
+    name = "ollama"
+
+    def __init__(self, *, client=None) -> None:
+        import httpx
+
         settings = get_settings()
-        self._model = SentenceTransformer(settings.sentence_transformer_model)
+        self._base = settings.ollama_base_url.rstrip("/")
+        self._model = settings.embedding_model.split("/", 1)[-1]
         self.dim = settings.embeddings_dim
+        self._http = client or httpx.Client(
+            timeout=settings.embedding_request_timeout_seconds
+        )
+        self._healthcheck()
+
+    def _healthcheck(self) -> None:
+        from app.core.errors import ProviderError
+
+        try:
+            r = self._http.get(f"{self._base}/api/tags")
+            r.raise_for_status()
+            available = {t.get("name") or "" for t in r.json().get("models", [])}
+        except Exception as e:
+            raise ProviderError(
+                f"Ollama not reachable at {self._base}: {e}. Start it with "
+                f"'ollama serve' and pull the model with "
+                f"'ollama pull {self._model}'.",
+                provider="ollama",
+            ) from e
+        # Ollama reports tags ("nomic-embed-text:latest") for unqualified asks.
+        if not any(
+            name == self._model or name.startswith(f"{self._model}:")
+            for name in available
+        ):
+            raise ProviderError(
+                f"Ollama model {self._model!r} is not installed. "
+                f"Run 'ollama pull {self._model}'. "
+                f"Available: {sorted(n for n in available if n)}",
+                provider="ollama",
+                model=self._model,
+            )
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        import numpy as np
+        from app.core.errors import ProviderError
 
-        vecs = self._model.encode(texts, normalize_embeddings=True)
-        return [list(map(float, v)) for v in np.asarray(vecs)]
+        if not texts:
+            return []
+        payload = {"model": self._model, "input": [t or " " for t in texts]}
+        try:
+            r = self._http.post(f"{self._base}/api/embed", json=payload)
+            r.raise_for_status()
+            vectors = r.json().get("embeddings") or []
+        except Exception as e:
+            raise ProviderError(f"Ollama embeddings error: {e}", provider="ollama",
+                                model=self._model) from e
+        if len(vectors) != len(texts):
+            raise ProviderError(
+                f"Ollama returned {len(vectors)} vectors for {len(texts)} inputs",
+                provider="ollama",
+                model=self._model,
+            )
+        for i, vec in enumerate(vectors):
+            if len(vec) != self.dim:
+                raise ProviderError(
+                    f"EMBEDDING_DIM={self.dim} but model {self._model!r} "
+                    f"returned {len(vec)} dimensions (input {i}). "
+                    f"Set EMBEDDING_DIM={len(vec)} and rebuild the vector index.",
+                    provider="ollama",
+                    model=self._model,
+                )
+        return [[float(x) for x in vec] for vec in vectors]
 
 
 # ---------------------------------------------------------------------------
@@ -152,17 +213,15 @@ def get_embeddings() -> BaseEmbeddings:
     settings = get_settings()
     provider = settings.embeddings_provider
     if provider == "openai":
-        if not settings.openai_api_key:
+        if not settings.openai_api_key.get_secret_value():
             log.warning("EMBEDDINGS_PROVIDER=openai but key unset; using stub")
             _emb_singleton = StubEmbeddings(dim=settings.embeddings_dim)
         else:
             _emb_singleton = OpenAIEmbeddings()
-    elif provider == "sentence_transformers":
-        try:
-            _emb_singleton = SentenceTransformerEmbeddings()
-        except ProviderError as e:
-            log.warning(f"{e}; using stub")
-            _emb_singleton = StubEmbeddings(dim=settings.embeddings_dim)
+    elif provider == "ollama":
+        # Fail loudly: silently substituting stub vectors would embed tenant
+        # documents in a space that no real model can query.
+        _emb_singleton = OllamaEmbeddings()
     else:
         _emb_singleton = StubEmbeddings(dim=settings.embeddings_dim)
     return _emb_singleton

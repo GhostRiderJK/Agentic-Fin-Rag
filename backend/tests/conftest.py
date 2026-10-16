@@ -43,12 +43,21 @@ def _isolated_env(tmp_path_factory):
     os.environ["JOBS_MODE"] = "inproc"
     os.environ["OPENAI_API_KEY"] = ""  # force stub providers in tests
 
-    # Provide test defaults for OmniRoute config (won't be used when LLM_PROVIDER=stub)
-    os.environ.setdefault("OMNIROUTE_API_KEY", "test-key")
-    os.environ.setdefault("OMNIROUTE_BASE_URL", "http://test")
+    # Provide test defaults for the gateway config (unused when LLM_PROVIDER=stub)
+    os.environ.setdefault("LLM_API_KEY", "test-key")
+    os.environ.setdefault("LLM_BASE_URL", "http://test")
     os.environ.setdefault("CHAT_MODEL", "nvidia/nvidia/nemotron-3-super-120b-a12b")
-    os.environ.setdefault("REASONING_MODEL", "nvidia/nvidia/nemotron-3-ultra-550b-a55b")
-    os.environ.setdefault("FALLBACK_CHAIN", "nvidia/nvidia/nemotron-3-super-120b-a12b,ollama/llama3.1")
+    os.environ.setdefault("REASONING_MODEL", "nvidia/nvidia/nemotron-3-super-120b-a12b")
+    os.environ.setdefault(
+        "VISION_MODEL", "nvidia/meta/llama-3.2-11b-vision-instruct"
+    )
+    os.environ.setdefault(
+        "FALLBACK_CHAIN",
+        "nvidia/nvidia/nemotron-3-super-120b-a12b,"
+        "nvidia/poolside/laguna-xs-2.1,"
+        "nvidia/stepfun-ai/step-5-preview,"
+        "ollama/llama3.1",
+    )
     os.environ.setdefault("ALLOWED_PROVIDERS", "nvidia,ollama")
     # Clear caches so new env is picked up
     from app.core.config import reset_settings_cache
