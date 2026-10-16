@@ -9,6 +9,24 @@ from pathlib import Path
 import pytest
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--allow-mongo-skip",
+        action="store_true",
+        default=False,
+        help=(
+            "Skip instead of fail when the real test MongoDB at MONGODB_TEST_URL "
+            "is unreachable. Equivalent to REQUIRE_MONGO=0."
+        ),
+    )
+
+
+def pytest_configure(config):
+    # Honour the CLI opt-out before any fixture reads the environment.
+    if config.getoption("--allow-mongo-skip", default=False):
+        os.environ["REQUIRE_MONGO"] = "0"
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _isolated_env(tmp_path_factory):
     """Run all tests against a temp data dir + in-memory vector store +

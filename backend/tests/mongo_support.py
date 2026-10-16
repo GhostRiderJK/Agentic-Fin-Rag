@@ -27,6 +27,42 @@ DEFAULT_URL = "mongodb://127.0.0.1:27018/?directConnection=true"
 _PROBES: dict = {}
 
 
+def mongo_required() -> bool:
+    """Whether an unreachable test MongoDB must fail the run.
+
+    On by default. Every test in the isolation suite that cannot reach a real
+    server otherwise reports as *skipped*, and a green "N passed, M skipped"
+    line reads like coverage that never happened. Opt out with
+    ``REQUIRE_MONGO=0`` or ``--allow-mongo-skip``.
+    """
+    raw = os.environ.get("REQUIRE_MONGO", "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
+
+def enforce_reachable(url: str, reason: str | None) -> None:
+    """Skip, or fail when ``REQUIRE_MONGO`` is on, if *reason* says the server is down."""
+    if not reason:
+        return
+    detail = f"MongoDB not reachable at {url}: {reason}"
+    if mongo_required():
+        pytest.fail(
+            f"{detail}\n\n"
+            "REQUIRE_MONGO is enabled (the default), so this is a failure rather "
+            "than a skip. Start the throwaway test instance:\n"
+            "    docker compose -f infra/docker-compose.yml up -d mongo-test\n"
+            "Set REQUIRE_MONGO=0 (or pass --allow-mongo-skip) to skip instead.",
+            pytrace=False,
+        )
+    pytest.skip(detail)
+
+
+def probe_unreachable(url: str) -> str | None:
+    """Ping *url* and return the failure reason, or None when it answers."""
+    import pymongo
+
+    return _unreachable_reason(pymongo, url)
+
+
 def _unreachable_reason(pymongo, url):
     """None when the server answers, otherwise a short reason.
 
@@ -65,8 +101,7 @@ def _open_real(run):
     motor = pytest.importorskip("motor.motor_asyncio")
     url = os.environ.get("MONGODB_TEST_URL", DEFAULT_URL)
     reason = _unreachable_reason(pymongo, url)
-    if reason:
-        pytest.skip(f"MongoDB not reachable at {url}: {reason}")
+    enforce_reachable(url, reason)
     admin = pymongo.MongoClient(url, serverSelectionTimeoutMS=3000)
 
     name = f"finrag_test_{uuid.uuid4().hex}"

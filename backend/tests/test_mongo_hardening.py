@@ -50,6 +50,7 @@ if not os.path.exists(os.path.join(os.path.dirname(__file__), '__init__.py')):
         DEFAULT_URL,
         _PROBES,
         _unreachable_reason,
+        enforce_reachable,
         run_db,
         _open_real,
     )
@@ -58,6 +59,7 @@ else:
         DEFAULT_URL,
         _PROBES,
         _unreachable_reason,
+        enforce_reachable,
         run_db,
         _open_real,
     )
@@ -126,8 +128,7 @@ def _open_real(run):
     motor = pytest.importorskip("motor.motor_asyncio")
     url = os.environ.get("MONGODB_TEST_URL", DEFAULT_URL)
     reason = _unreachable_reason(pymongo, url)
-    if reason:
-        pytest.skip(f"MongoDB not reachable at {url}: {reason}")
+    enforce_reachable(url, reason)
     admin = pymongo.MongoClient(url, serverSelectionTimeoutMS=3000)
 
     name = f"finrag_test_{uuid.uuid4().hex}"

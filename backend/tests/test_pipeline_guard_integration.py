@@ -29,6 +29,11 @@ pymongo = pytest.importorskip("pymongo")
 
 from app.db.mongodb.pipeline_guard import guard_pipeline  # noqa: E402
 
+if not os.path.exists(os.path.join(os.path.dirname(__file__), "__init__.py")):
+    from mongo_support import enforce_reachable  # noqa: E402
+else:
+    from tests.mongo_support import enforce_reachable  # noqa: E402
+
 pytestmark = pytest.mark.integration
 
 TEST_URL = os.environ.get(
@@ -44,8 +49,10 @@ def db():
     client = pymongo.MongoClient(TEST_URL, serverSelectionTimeoutMS=3000)
     try:
         client.admin.command("ping")
-    except Exception as exc:  # unreachable server -> skip, never fail
-        pytest.skip(f"MongoDB not reachable at {TEST_URL}: {exc}")
+    except Exception as exc:
+        client.close()
+        reason = (str(exc).splitlines() or [type(exc).__name__])[0][:120]
+        enforce_reachable(TEST_URL, reason)
     name = f"finrag_test_{uuid.uuid4().hex}"
     database = client[name]
     info = client.server_info()

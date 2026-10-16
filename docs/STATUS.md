@@ -75,8 +75,68 @@ Gaps against the brief:
    into `base_repository`, but activation is per-class `decimal_fields`, which
    defaults to empty and **is declared by no production repository**. Money is
    still float at rest.
-4. **Docker Compose has no `mongo` service**, no backend/frontend Dockerfiles,
-   and still provisions Postgres.
+4. ~~Docker Compose has no `mongo` service~~ — resolved in (a) below.
+
+## Round progress (Step 2 only)
+
+### (a) Compose + containerisation — DONE, verified
+
+`infra/docker-compose.yml` now provisions `mongo` (mongodb-atlas-local, host
+27019), `mongo-test` (same image, host 27018, volume-free so tests can never
+touch the app database), `qdrant`, an optional `redis` behind the `redis`
+profile, and `backend`/`frontend` behind the `app` profile. Postgres is removed.
+All published ports are host-overrideable (`MONGO_HOST_PORT`,
+`BACKEND_HOST_PORT`, …) and bound to 127.0.0.1 only.
+
+Three real problems found and fixed while verifying, not writing:
+
+- **Port 27017 is not ours.** A native `mongod.exe` Windows service owns it and
+  holds live data for other projects (`ai_coding_assistant`, `jurisai`,
+  `ray_of_hope`, `FoodDelivery`, `food_ordering_db`) plus an older `finrag`
+  database (collections: `researchsessions`, `documents`, `tenants`). Nothing
+  there was touched. Our store moved to 27019, and `config.py`'s default
+  `mongodb_url` follows, because a community mongod would connect fine and then
+  fail every `$vectorSearch`/`$search` call. **Whether that old `finrag`
+  database should be migrated is an open question for the user.**
+- **Compose's `env_file` keeps inline comments** as part of the value, so
+  `VISION_MODEL=  # e.g., nvidia/...` in `.env` was passed verbatim and the
+  container refused to boot on config validation. The backend now mounts
+  `.env` read-only at `/app/.env` and lets the app's own loader (which strips
+  them correctly) parse it. `.env.example` documents the rule and uses
+  own-line comments only.
+- **Next.js compiles `rewrites()` into the routes manifest at build time**, so
+  the runtime `BACKEND_URL` env var was ignored and `/api/health` proxied to
+  `127.0.0.1:8000` (refused). Fixed with a build `ARG`.
+
+Verified running: `finrag-mongo`, `finrag-mongo-test`, `finrag-qdrant`,
+`finrag-backend`, `finrag-frontend` all healthy; `GET :8010/health` → 200;
+`GET :3000/` → 200; `GET :3000/api/health` → 200 through the proxy. Backend and
+frontend images build clean (835 MB / Node 20 multi-stage).
+
+### (b) Silent skips — DONE, verified
+
+An unreachable test MongoDB no longer reports as "skipped". `REQUIRE_MONGO`
+defaults to **on**, and `mongo_support.enforce_reachable()` turns the condition
+into a failure at all three former skip sites (`mongo_support._open_real`,
+`test_mongo_hardening._open_real`, `test_pipeline_guard_integration.db`).
+Opt out with `REQUIRE_MONGO=0` or `--allow-mongo-skip`.
+
+Verified against a deliberately dead URL:
+
+```
+default policy        -> 22 passed, 21 errors   (loud)
+REQUIRE_MONGO=0       -> 22 passed, 21 skipped
+--allow-mongo-skip    -> 22 passed, 21 skipped
+```
+
+Documented test command (PowerShell), which is now the only honest one:
+
+```powershell
+docker compose -f infra/docker-compose.yml up -d mongo-test
+cd backend
+..\.venv\Scripts\python.exe -m pytest    # REQUIRE_MONGO is on by default
+```
+
 
 ## Steps 3–12: NOT STARTED
 
