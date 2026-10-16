@@ -51,7 +51,10 @@ class ProviderError(AppError):
     status_code = 502
     code = "provider_error"
 
-    def __init__(self, message: str, provider: str, model: Optional[str] = None, **details: Any) -> None:
+    # ``provider`` is optional because every raise site in app/providers
+    # currently omits it; as a required positional it turned any provider
+    # failure into TypeError instead of a 502.
+    def __init__(self, message: str, provider: Optional[str] = None, model: Optional[str] = None, **details: Any) -> None:
         super().__init__(message, provider=provider, model=model, **details)
 
 
