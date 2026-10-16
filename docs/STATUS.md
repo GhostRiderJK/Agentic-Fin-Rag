@@ -17,7 +17,9 @@ code and services on this machine, not against a plan.
 ## Test suite
 
 > Snapshot of the pre-round baseline. Current count, with `mongo-test` running
-> and `REQUIRE_MONGO=1`: **756 passed, 0 skipped.** See *Round progress* below.
+> and `REQUIRE_MONGO=1`: **778 passed, 8 xfailed, 0 skipped.** The xfails are
+> the route-level holes listed under *(e)*, each pinned to the item that closes
+> it. See *Round progress* below.
 
 `305 passed, 0 skipped` from `backend/` with `.venv/Scripts/python.exe -m pytest`.
 
@@ -246,6 +248,55 @@ SQL-era writers in `app/ingestion/pipeline.py`, `app/seed/seed_financials.py`
 and `app/jobs/queue.py` still go through SQLAlchemy), so the declarations
 cannot break a live path — they take effect for the Mongo readers that arrive
 with items (e) and (f).
+
+### (e) Route-level isolation tests — DONE, 8 holes found and pinned
+
+New `tests/test_api_isolation.py` (30 tests) drives the real FastAPI app with
+two tenants, each with its own admin, workspace, document, conversation,
+message, job and eval run, and calls every id-taking route with the *other*
+tenant's credentials. Foreign rows are re-read straight from the database, so a
+"404" that quietly mutated something still gets caught.
+
+`COVERAGE` maps every tenant-facing route in the OpenAPI document to the case
+that checks it, and `test_every_route_is_accounted_for` fails if a route is
+added without one — or if a mapped route disappears. Mutation-checked: deleting
+the `GET /jobs` row makes that meta-test fail.
+
+**Fails closed (22 tests):** workspace-scoped document list/get/patch/delete,
+document upload rejected before any file or row is written, `/chat` and
+`/chat/stream` on a foreign workspace, conversation list and message history,
+`/reports` on a foreign workspace, `/jobs` list (including a `workspace_id`
+filter that cannot widen scope) and `/jobs/{id}`, eval on a foreign workspace,
+cross-tenant user creation (403), all 15 data routes answering 401 without
+credentials, and unknown keys rejected.
+
+**Leaks (8 tests, `xfail(strict=True)` — the assertion is the requirement, the
+marker records that the route does not meet it, and strictness turns the suite
+red the moment it is fixed):**
+
+| Route | Leak | Closes at |
+|---|---|---|
+| `POST /messages/{id}/feedback` | `app/api/chat.py:180` loads the message by id with no workspace or tenant check; tenant A rates tenant B's answer and the row changes (observed 200) | (f) chat migration |
+| `GET /admin/eval/runs` | `app/api/admin.py:57` has no tenant filter — and `eval_runs` has **no tenant column** in the SQL schema, so it cannot be filtered there at all | (f) |
+| `POST /admin/eval/run` | `app/api/admin.py:49` reports the newest `eval_runs` row globally; a future-dated foreign row is returned verbatim to tenant A | (f) |
+| `POST /auth/tenants` | no authentication at all (`app/api/auth.py:36`): anyone can create tenants | (h) |
+| `POST /auth/users` | trusts the caller-supplied `tenant_id` whenever that tenant has no users yet (`app/api/auth.py:58`), so an anonymous request can make itself admin of any unclaimed tenant | (h) |
+| `GET /auth/me`, `UserOut` | the API key is stored in plaintext and handed back by every user response | (h) |
+| password auth | **not a leak, a break:** passlib 1.7.4 cannot run its bcrypt backend detection against the installed bcrypt 5.0.0 (its probe secret exceeds bcrypt's 72-byte limit), so `hash_password()` raises `ValueError` on first use — creating a user with a password dies (a 500 in a running server) and `/auth/login` can therefore never succeed. API-key auth is the only working path, which is why this stayed invisible | (h) |
+
+Two further observations that are not route leaks but are recorded for (f):
+`users.email` is globally unique in SQL while the Mongo index plan makes it
+unique *per tenant*, so the login lookup must be re-scoped during migration; and
+`test_smoke`'s "eval run" step in its docstring is never actually exercised.
+
+Incidental fix: the local Qdrant client's destructor was running during
+interpreter shutdown and printing an `ImportError` that no test caused; the
+session fixture in `tests/conftest.py` now closes it explicitly.
+
+```
+tests/test_api_isolation.py                          ->  22 passed, 8 xfailed
+whole backend suite, REQUIRE_MONGO=1, mongo-test up   ->  778 passed, 8 xfailed, 0 skipped
+```
 
 ### Checkpoint decisions 2 and 4 — DONE, verified
 
