@@ -63,7 +63,12 @@ class Settings(BaseSettings):
 
     # MongoDB (primary store for FinRAG 2.0). Use 127.0.0.1, not "localhost",
     # which can resolve to ::1 and reach a different server on Windows.
-    mongodb_url: str = "mongodb://127.0.0.1:27017"
+    # Port 27019 rather than the conventional 27017 because this store must be
+    # the Atlas-Search-capable mongodb-atlas-local image provisioned by
+    # infra/docker-compose.yml; a plain community mongod on 27017 would connect
+    # happily and then fail every $vectorSearch/$search call. Override with
+    # MONGODB_URL.
+    mongodb_url: str = "mongodb://127.0.0.1:27019"
     mongodb_test_url: str = "mongodb://127.0.0.1:27018/?directConnection=true"
     mongodb_db_name: str = "finrag"
     mongodb_server_selection_timeout_ms: int = 5000
