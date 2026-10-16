@@ -3,7 +3,6 @@ name = "investment-research-backend"
 version = "0.1.0"
 description = "Investment Research Assistant — Agentic Financial Intelligence Platform (RAG)"
 requires-python = ">=3.10"
-readme = "../README.md"
 license = { text = "MIT" }
 
 dependencies = [
