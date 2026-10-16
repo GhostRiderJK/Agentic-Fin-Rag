@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any, Callable, Dict, List, Optional
 
 import pytest
@@ -159,14 +160,14 @@ CASES: List[Case] = [
             "metric": "revenue",
             "fiscal_year": 2025,
             "quarter": "Q1",
-            "value": 100.0,
+            "value": Decimal("100.00"),
         },
         b_only=[{
             "company": "ONLY-B",
             "metric": "secret_margin",
             "fiscal_year": 2025,
             "quarter": "Q2",
-            "value": 77.0,
+            "value": Decimal("77.00"),
         }],
         probes=[
             lambda r, own, other, a, b: r.get_metric(
@@ -206,7 +207,12 @@ CASES: List[Case] = [
     Case(
         collection=C.JOBS,
         repo_cls=JobRepository,
-        doc=lambda tag: {"kind": "ingest", "status": "queued", "payload": {f"k{tag}": 1}},
+        doc=lambda tag: {
+            "kind": "ingest",
+            "status": "queued",
+            "progress": Decimal("0.25"),
+            "payload": {f"k{tag}": 1},
+        },
         probes=[lambda r, own, other, a, b: r.list_recent(own, limit=10)],
     ),
     Case(

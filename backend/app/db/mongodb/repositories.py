@@ -199,6 +199,10 @@ class ChunkRepository(BaseRepository):
 
 class StructuredFinancialRepository(BaseRepository):
     collection_name = C.STRUCTURED_FINANCIALS
+    # `value` holds money or a ratio depending on the metric; `confidence` is a
+    # 0..1 ratio. Both are exact decimals — a float has lost precision before
+    # it ever reaches the database.
+    decimal_fields = frozenset({"value", "confidence"})
 
     async def get_metric(
         self,
@@ -278,6 +282,8 @@ class MessageRepository(BaseRepository):
 
 class JobRepository(BaseRepository):
     collection_name = C.JOBS
+    # A 0..1 ratio, not a float: progress is compared and reported to users.
+    decimal_fields = frozenset({"progress"})
 
     async def list_recent(
         self, ctx: TenantContext, *, limit: int = 50

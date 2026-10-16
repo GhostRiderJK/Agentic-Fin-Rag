@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
+from decimal import Decimal
 
 import pytest
 
@@ -106,7 +107,8 @@ def seeded(mongo_db, ctx_a, ctx_b):
                                       "company": "ACME", "year": 2025})
         await chunks.insert_one(ctx_a, {"document_id": "doc-a", "text": "A text"})
         await fin.insert_one(ctx_a, {"company": "ACME", "metric": "revenue",
-                                     "fiscal_year": 2025, "value": 120.0})
+                                     "fiscal_year": 2025,
+                                     "value": Decimal("120.00")})
         await msgs.insert_one(ctx_a, {"conversation_id": "conv-a", "content": "hello A"})
 
         # Tenant B data (same shapes, different ids/values)
@@ -116,7 +118,8 @@ def seeded(mongo_db, ctx_a, ctx_b):
                                       "company": "ACME", "year": 2025})
         await chunks.insert_one(ctx_b, {"document_id": "doc-b", "text": "B text"})
         await fin.insert_one(ctx_b, {"company": "ACME", "metric": "revenue",
-                                     "fiscal_year": 2025, "value": 999.0})
+                                     "fiscal_year": 2025,
+                                     "value": Decimal("999.00")})
         await msgs.insert_one(ctx_b, {"conversation_id": "conv-b", "content": "hello B"})
 
     run(_seed())
@@ -224,8 +227,8 @@ class TestCrossTenantReads:
                                     fiscal_year=2025))
         b_rows = run(fin.get_metric(ctx_b, company="ACME", metric="revenue",
                                     fiscal_year=2025))
-        assert a_rows[0]["value"] == 120.0
-        assert b_rows[0]["value"] == 999.0
+        assert a_rows[0]["value"] == Decimal("120.00")
+        assert b_rows[0]["value"] == Decimal("999.00")
 
     def test_aggregate_cannot_cross_tenants(self, seeded, ctx_a):
         """A pipeline that drops the tenant match still only sees tenant A's
