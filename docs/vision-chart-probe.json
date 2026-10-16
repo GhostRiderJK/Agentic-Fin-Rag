@@ -1,0 +1,102 @@
+{
+  "generated_at": "2026-10-17T00:54:19+0530",
+  "gateway_base_url": "http://localhost:20128/v1",
+  "seed": 7,
+  "max_tokens": 4000,
+  "image_sha256": "ec87a5389a689e086bdd0a5e73a3a81436c331446feaf546ecc7bdfbd3f78aa0",
+  "image_bytes": 19489,
+  "prompt": "This bar chart shows quarterly revenue in USD millions. Read the exact value of each bar from the axis \u2014 do not estimate from bar height alone. Answer with JSON only: {\"Q1\": <number>, \"Q2\": <number>, \"Q3\": <number>, \"Q4\": <number>}",
+  "ground_truth": {
+    "Q1": 1240.0,
+    "Q2": 1585.0,
+    "Q3": 1372.0,
+    "Q4": 1908.0
+  },
+  "results": [
+    {
+      "model": "nvidia/nvidia/nemotron-3.5-super-vl-120b-a12b",
+      "status": "ok",
+      "http_status": 200,
+      "latency_ms": 46993,
+      "max_tokens": 4000,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 632,
+        "completion_tokens": 1539,
+        "total_tokens": 2171,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 1497,
+          "rejected_prediction_tokens": null
+        }
+      },
+      "headers": {
+        "x-omniroute-provider": "nvidia",
+        "x-request-id": "6639d048-0243-4603-8124-eb7b6d9419bf"
+      },
+      "reply": "{\"Q1\": 1200, \"Q2\": 1600, \"Q3\": 1400, \"Q4\": 1900}",
+      "parsed": {
+        "Q1": 1200.0,
+        "Q2": 1600.0,
+        "Q3": 1400.0,
+        "Q4": 1900.0
+      },
+      "ground_truth": {
+        "Q1": 1240.0,
+        "Q2": 1585.0,
+        "Q3": 1372.0,
+        "Q4": 1908.0
+      },
+      "correct": 0,
+      "of": 4,
+      "max_abs_err": 40.0,
+      "worst_quarter": "Q1",
+      "max_rel_err_pct": 3.226,
+      "exact": false,
+      "missing": []
+    },
+    {
+      "model": "nvidia/meta/llama-3.2-11b-vision-instruct",
+      "status": "ok",
+      "http_status": 200,
+      "latency_ms": 16244,
+      "max_tokens": 4000,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 6477,
+        "completion_tokens": 34,
+        "total_tokens": 6511,
+        "prompt_tokens_details": null
+      },
+      "headers": {
+        "x-omniroute-provider": "nvidia",
+        "x-request-id": "41db616f-68dc-495b-8d0b-7cdb35993916"
+      },
+      "reply": "{\"Q1\": 1200, \"Q2\": 1600, \"Q3\": 1400, \"Q4\": 1900}M",
+      "parsed": {
+        "Q1": 1200.0,
+        "Q2": 1600.0,
+        "Q3": 1400.0,
+        "Q4": 1900.0
+      },
+      "ground_truth": {
+        "Q1": 1240.0,
+        "Q2": 1585.0,
+        "Q3": 1372.0,
+        "Q4": 1908.0
+      },
+      "correct": 0,
+      "of": 4,
+      "max_abs_err": 40.0,
+      "worst_quarter": "Q1",
+      "max_rel_err_pct": 3.226,
+      "exact": false,
+      "missing": []
+    }
+  ]
+}

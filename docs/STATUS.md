@@ -16,6 +16,9 @@ code and services on this machine, not against a plan.
 
 ## Test suite
 
+> Snapshot of the pre-round baseline. Current count, with `mongo-test` running
+> and `REQUIRE_MONGO` on: **317 passed, 0 skipped.** See *Round progress* below.
+
 `305 passed, 0 skipped` from `backend/` with `.venv/Scripts/python.exe -m pytest`.
 
 The MongoDB suite is **parameterised `mock` + `real`**. The `real` variants
@@ -137,6 +140,69 @@ cd backend
 ..\.venv\Scripts\python.exe -m pytest    # REQUIRE_MONGO is on by default
 ```
 
+
+### Checkpoint decisions 2 and 4 — DONE, verified
+
+**Decision 4 (models, config only).** `config.py` now defaults
+`CHAT_MODEL`/`REASONING_MODEL` to `nvidia/nvidia/nemotron-3-super-120b-a12b`,
+`VISION_MODEL` to `nvidia/meta/llama-3.2-11b-vision-instruct`, and
+`FALLBACK_CHAIN` to the four pinned ids in order. The dead
+`nemotron-3-ultra-550b-a55b` default is gone from both `config.py` and
+`tests/conftest.py`. `LLM_BASE_URL`/`LLM_API_KEY` are accepted through
+`AliasChoices` and win over the `OMNIROUTE_*` names, which still work.
+`test_config.py` pins these values so a future default cannot drift back to a
+dead model.
+
+**Decision 2 (embeddings).** `OllamaEmbeddings` calls the native
+`/api/embed` route; `EMBEDDING_MODEL` and `EMBEDDING_DIM` are config, and the
+`ollama/` role prefix is stripped before the request. It fails loudly rather
+than degrading: an unreachable daemon, a model that is not pulled, a short
+answer, or a width that disagrees with `EMBEDDING_DIM` all raise `ProviderError`
+with the exact command to run. `sentence-transformers` is removed from the
+`local` extra and the provider option that used it is deleted; the reranker's
+`cross_encoder` path still degrades to the stub with a warning.
+
+Real run against the daemon (not mocked), 768-dim, L2-normalised:
+
+```
+provider= ollama dim= 768
+dims= [768, 768, 768]   l2_norms= [1.0, 1.0, 1.0]
+cos("revenue grew 12%…", "gross margin compressed…") = 0.4679
+cold first call = 32.2 s (model load); tests use an httpx MockTransport
+```
+
+The daemon was not running. I started `ollama serve` and ran
+`ollama pull nomic-embed-text` (274 MB) to verify this for real.
+
+**Defect found while doing it.** `ProviderError.__init__` required `provider`
+positionally, and all 21 raise sites across `app/providers/*` omit it — so
+*every* provider failure surfaced as `TypeError` instead of a 502. `provider`
+is now optional. Separately, `openai_api_key`/`anthropic_api_key` and the
+`*_chat_model` fields were read by the providers but never declared on
+`Settings`; they are declared now, as `SecretStr`, with the three call sites
+updated to `get_secret_value()` (a bare `SecretStr("")` is truthy, so the old
+"is the key set?" checks would have passed with no key).
+
+### Chart-reading probe (decision 4, recorded)
+
+`backend/scripts/probe_vision_chart.py` draws a bar chart with PIL from an
+explicit ground truth (`Q1 1240, Q2 1585, Q3 1372, Q4 1908` USD m), sends it as
+a PNG, and scores the reply. Evidence: `docs/vision-chart-probe.json`, image
+sha256 `ec87a5389a689e08…`, seed 7, 2026-10-17.
+
+| Model | Result | Latency | prompt/completion tokens |
+|---|---|---|---|
+| `nvidia/nvidia/nemotron-3.5-super-vl-120b-a12b` | `{1200, 1600, 1400, 1900}` — max err 40 (3.23%) | 47.0 s | 632 / 1539 (1497 reasoning) |
+| `nvidia/meta/llama-3.2-11b-vision-instruct` | `{1200, 1600, 1400, 1900}` — max err 40 (3.23%) | 16.2 s | 6477 / 34 |
+
+Both models read only to the nearest gridline; neither resolves a value between
+gridlines, and they agree exactly, so this is a capability ceiling rather than
+one weak model. At 400 `max_tokens` nemotron-3.5-super-vl returned HTTP 200 with
+**no answer at all** (400/400 tokens spent reasoning) — a config-trap worth
+remembering for Step 4. Consequence for the design: chart images may inform
+narrative, but every reported number must come from document text or tables,
+never from a chart read. Note also the 10x prompt-token difference for the same
+image.
 
 ## Steps 3–12: NOT STARTED
 
