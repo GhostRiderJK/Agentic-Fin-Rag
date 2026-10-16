@@ -141,6 +141,59 @@ cd backend
 ```
 
 
+### (c) Isolation coverage for every repository — DONE, verified
+
+**Count correction.** The brief said "all 15 repositories". `app/db/mongodb`
+has **13 repository classes over 13 collections**: 12 tenant-owned
+(`collections.TENANT_OWNED`) plus `tenants`, which is the tenancy root and
+carries no `tenant_id`. `FINRAG_GAP_ANALYSIS.md` does not exist in the repo, so
+the 15 cannot be reconciled against it; coverage below is complete for what is
+actually in the tree.
+
+New `tests/test_mongo_isolation_matrix.py` (416 tests) applies one battery
+mechanically to all 12 tenant-owned repositories, including the domain methods
+each subclass adds — `get_by_email`, `get_by_api_key`, `list_for_tenant`,
+`list_for_workspace`, `find_by_metadata`, `set_status`, `list_for_document`,
+`list_children`, `get_many_by_ids`, `get_metric`, `compare_metric`,
+`list_metrics`, `list_for_conversation`, `set_feedback`, `list_recent`,
+`list_for_run`, `record`, `list_for_message`:
+
+- read: foreign id invisible via `get_by_id`/`exists`/`find_one`; unfiltered
+  `find_many`/`count`/`stream` scoped; a caller-supplied `tenant_id` (including
+  `{"$ne": own}`) cannot widen scope; `$or` over both ids returns only own;
+  projection reads scoped; aggregation cannot span tenants.
+- write: foreign id cannot be updated or deleted; `update_many`/`delete_many`
+  touch only own rows; inserts cannot claim another tenant; `insert_many`
+  stamps every row; ownership cannot be transferred by `$set`; domain mutation
+  probes must return 0 for foreign ids.
+- context: every operation raises `TenantContextError` without a context, and
+  `stream()` is rejected before iteration rather than at first `await`.
+
+Three meta-tests guard against drift, which matters more than the individual
+cases: a new collection in `TENANT_OWNED` without a matrix case fails, a new
+`BaseRepository` subclass pointed outside `TENANT_OWNED` fails, and a matrix
+case wired to the wrong repository class fails.
+
+**The suite was mutation-tested, not just run.** Deleting the tenant filter
+from `BaseRepository._scoped` produced **320 failures** across the three Mongo
+suites (146 from the matrix alone), so the 416 passes are real signal, not
+assertions that cannot fail. The mutation was reverted with
+`git checkout -- backend/app/db/mongodb/base_repository.py`.
+
+Two defects fixed while getting there:
+- `test_mongo_isolation.py` had an assertion merged onto the same line as a `#`
+  comment, so it never executed; restored to a real assert.
+- `test_mongo_hardening.py` carried verbatim copies of `mongo_support`'s
+  `_PROBES`, `_unreachable_reason`, `run_db` and `_open_real`, shadowing its own
+  imports. Those and its `run`/`db`/`real_db`/`ctx_*` fixtures now live only in
+  `mongo_support.py` and are imported, so the mock/real policy and
+  `REQUIRE_MONGO` enforcement have exactly one definition.
+
+```
+mongo suites (isolation + matrix + hardening)  ->  541 passed
+whole backend suite, mongo-test up             ->  733 passed, 0 skipped
+```
+
 ### Checkpoint decisions 2 and 4 — DONE, verified
 
 **Decision 4 (models, config only).** `config.py` now defaults
