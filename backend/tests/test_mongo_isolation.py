@@ -5,9 +5,9 @@ count, aggregate, or re-own another tenant's data. All of them MUST fail
 closed. If any of these tests starts passing (i.e. the hostile action
 succeeds), tenant isolation is broken — treat it as a release blocker.
 
-Runs against mongomock-motor (in-memory, async), so no MongoDB server is
-needed. mongomock-motor implements the Motor API surface on top of the
-mongomock in-memory engine.
+Runs twice per test: on mongomock-motor (in-memory) and, when a server answers
+``MONGODB_TEST_URL``, on a real MongoDB. ``test_mongo_isolation_matrix.py``
+extends the same battery to every tenant-owned repository.
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ def mongo_db(request):
             )
             set_test_database(database)
         else:
-            database, close = open_real(run)   # skips quickly when the server is down
+            database, close = open_real(run)   # fails, not skips, when it is down
         yield database
     finally:
         if close:
@@ -310,7 +310,8 @@ class TestPerTenantUniqueness:
         compound index uq_user_tenant_email."""
         users = UserRepository()
         # Index enforcement itself is covered in test_mongo_bootstrap.py;
-        # here we assert the *lookup* scoping:        assert run(users.get_by_email(ctx_a, "a@tenant-a.test")) is not None
+        # here we assert the *lookup* scoping.
+        assert run(users.get_by_email(ctx_a, "a@tenant-a.test")) is not None
         assert run(users.get_by_email(ctx_b, "a@tenant-a.test")) is None
         # Tenant B has its own user with its own email.
         assert run(users.get_by_email(ctx_b, "b@tenant-b.test")) is not None
