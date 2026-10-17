@@ -10,13 +10,21 @@ root of tenancy and has no ``tenant_id`` of its own, so it extends
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
+import re
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from pymongo import DESCENDING
 
 from app.db.mongodb import collections as C
 from app.db.mongodb.base_repository import BaseRepository, utcnow
 from app.db.mongodb.tenant_context import TenantContext
+
+
+def _as_list(value: Union[Any, Sequence[Any]]) -> list:
+    """Mongo ``$in`` operand for a filter that accepts one value or many."""
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return list(value)
+    return [value]
 
 
 class _UnscopedRepository:
@@ -139,11 +147,68 @@ class DocumentRepository(BaseRepository):
         workspace_id: str,
         *,
         status: Optional[str] = None,
+        company_like: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
+        """Documents in one workspace, newest first.
+
+        ``company_like`` is a case-insensitive substring, matching what the
+        documents list route has always done. It is escaped because the value
+        comes from a query parameter and is placed inside a regex.
+        """
         query: Dict[str, Any] = {"workspace_id": workspace_id}
         if status:
             query["status"] = status
+        if company_like:
+            query["company"] = {
+                "$regex": re.escape(company_like),
+                "$options": "i",
+            }
         return await self.find_many(ctx, query, sort=[("created_at", DESCENDING)])
+
+    async def find_matching(
+        self,
+        ctx: TenantContext,
+        *,
+        workspace_id: str,
+        status: str,
+        company: Union[str, Sequence[str], None] = None,
+        year: Union[int, Sequence[int], None] = None,
+        quarter: Union[str, Sequence[str], None] = None,
+        doc_type: Union[str, Sequence[str], None] = None,
+    ) -> List[Dict[str, Any]]:
+        """Retrieval's metadata prefilter: workspace + status + any subset of
+        company/year/quarter/doc_type. Each filter accepts one value or a list.
+        """
+        query: Dict[str, Any] = {"workspace_id": workspace_id, "status": status}
+        for field_name, value in (
+            ("company", company),
+            ("year", year),
+            ("quarter", quarter),
+            ("doc_type", doc_type),
+        ):
+            if value is not None and value != []:
+                query[field_name] = {"$in": _as_list(value)}
+        return await self.find_many(ctx, query)
+
+    async def distinct_years(
+        self, ctx: TenantContext, *, workspace_id: str, status: str
+    ) -> List[int]:
+        """Fiscal years present in a workspace.
+
+        Retrieval uses this so a question about a year mentioned *inside* a
+        document (a 2026 outlook in a 2025 report) does not filter that
+        document out.
+        """
+        values = await self.collection.distinct(
+            "year",
+            {
+                "tenant_id": ctx.tenant_id,
+                "workspace_id": workspace_id,
+                "status": status,
+                "year": {"$ne": None},
+            },
+        )
+        return sorted(v for v in values if v is not None)
 
     async def find_by_metadata(
         self,
@@ -188,6 +253,24 @@ class ChunkRepository(BaseRepository):
     ) -> List[Dict[str, Any]]:
         return await self.find_many(ctx, {"parent_id": parent_id})
 
+    async def find_searchable(
+        self, ctx: TenantContext, document_ids: Sequence[str]
+    ) -> List[Dict[str, Any]]:
+        """Child chunks of the given documents — the BM25 candidate corpus.
+
+        Only children are embedded; parents are fetched on demand during parent
+        expansion, so they are deliberately excluded here.
+        """
+        if not document_ids:
+            return []
+        return await self.find_many(
+            ctx, {"document_id": {"$in": list(document_ids)}, "is_parent": False}
+        )
+
+    async def delete_for_document(self, ctx: TenantContext, document_id: str) -> int:
+        """Remove a document's chunks (what the SQL cascade did on delete)."""
+        return await self.delete_many(ctx, {"document_id": document_id})
+
     async def get_many_by_ids(
         self, ctx: TenantContext, chunk_ids: Sequence[str]
     ) -> List[Dict[str, Any]]:
@@ -203,6 +286,49 @@ class StructuredFinancialRepository(BaseRepository):
     # 0..1 ratio. Both are exact decimals — a float has lost precision before
     # it ever reaches the database.
     decimal_fields = frozenset({"value", "confidence"})
+
+    async def find_by_company(
+        self,
+        ctx: TenantContext,
+        *,
+        workspace_id: str,
+        company: str,
+        metric: Optional[str] = None,
+        fiscal_year: Optional[int] = None,
+        quarter: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Rows whose company name *contains* ``company``, case-insensitively.
+
+        The tool-calling route passes whatever the LLM typed ("Apple Inc." for
+        a row stored as "Apple"), so this is a substring match rather than the
+        exact match :meth:`get_metric` does. The term is escaped because it is
+        interpolated into a regex.
+        """
+        query: Dict[str, Any] = {
+            "workspace_id": workspace_id,
+            "company": {"$regex": re.escape(company), "$options": "i"},
+        }
+        if metric:
+            query["metric"] = metric
+        if fiscal_year is not None:
+            query["fiscal_year"] = fiscal_year
+        if quarter:
+            query["quarter"] = quarter
+        return await self.find_many(
+            ctx,
+            query,
+            sort=[("fiscal_year", DESCENDING), ("quarter", DESCENDING)],
+        )
+
+    async def detach_document(self, ctx: TenantContext, document_id: str) -> int:
+        """Drop the provenance pointer when a document is deleted.
+
+        The extracted numbers stay: they were published from the filing, and
+        losing the filing must not silently delete the figures an analyst may
+        still be citing. This mirrors the SQL ``ON DELETE SET NULL``.
+        """
+        return await self.update_many(ctx, {"document_id": document_id},
+                                      {"document_id": None})
 
     async def get_metric(
         self,

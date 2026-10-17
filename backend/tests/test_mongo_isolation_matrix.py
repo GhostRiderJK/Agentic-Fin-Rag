@@ -133,6 +133,21 @@ CASES: List[Case] = [
             lambda r, own, other, a, b: r.find_by_metadata(own, company="SHARED"),
             lambda r, own, other, a, b: r.set_status(own, b["id"], "archived"),
             lambda r, own, other, a, b: r.list_for_workspace(own, b["workspace_id"]),
+            lambda r, own, other, a, b: r.list_for_workspace(
+                own, "ws-B", company_like="ONLY"),
+            lambda r, own, other, a, b: r.list_for_workspace(
+                own, "ws-A", company_like="shar"),
+            lambda r, own, other, a, b: r.find_matching(
+                own, workspace_id="ws-B", status="ready"),
+            lambda r, own, other, a, b: r.find_matching(
+                own, workspace_id="ws-A", status="ready", company="ONLY-B"),
+            lambda r, own, other, a, b: r.find_matching(
+                own, workspace_id="ws-A", status="ready", year=[2024, 2025],
+                quarter=["Q1", ""], doc_type="annual_report"),
+            lambda r, own, other, a, b: r.find_matching(
+                own, workspace_id="ws-B", status="ready", company="SHARED"),
+            lambda r, own, other, a, b: r.distinct_years(
+                own, workspace_id="ws-B", status="ready"),
         ],
     ),
     Case(
@@ -143,6 +158,7 @@ CASES: List[Case] = [
             "parent_id": f"parent-{tag}",
             "text": f"chunk text {tag}",
             "order": 1,
+            "is_parent": False,
         },
         probes=[
             lambda r, own, other, a, b: r.list_for_document(own, b["document_id"]),
@@ -150,6 +166,11 @@ CASES: List[Case] = [
             lambda r, own, other, a, b: r.get_many_by_ids(own, [a["id"], b["id"]]),
             lambda r, own, other, a, b: r.get_many_by_ids(own, [b["id"]]),
             lambda r, own, other, a, b: r.get_many_by_ids(own, []),
+            lambda r, own, other, a, b: r.find_searchable(own, [b["document_id"]]),
+            lambda r, own, other, a, b: r.find_searchable(
+                own, [a["document_id"], b["document_id"]]),
+            lambda r, own, other, a, b: r.find_searchable(own, []),
+            lambda r, own, other, a, b: r.delete_for_document(own, b["document_id"]),
         ],
     ),
     Case(
@@ -157,6 +178,8 @@ CASES: List[Case] = [
         repo_cls=StructuredFinancialRepository,
         doc=lambda tag: {
             "company": "SHARED",
+            "workspace_id": f"ws-{tag}",
+            "document_id": f"doc-{tag}",
             "metric": "revenue",
             "fiscal_year": 2025,
             "quarter": "Q1",
@@ -164,6 +187,8 @@ CASES: List[Case] = [
         },
         b_only=[{
             "company": "ONLY-B",
+            "workspace_id": "ws-B",
+            "document_id": "doc-B",
             "metric": "secret_margin",
             "fiscal_year": 2025,
             "quarter": "Q2",
@@ -179,6 +204,18 @@ CASES: List[Case] = [
                 own, companies=["SHARED", "ONLY-B"], metric="revenue"),
             lambda r, own, other, a, b: r.list_metrics(own, "ONLY-B"),
             lambda r, own, other, a, b: r.list_metrics(own, "SHARED"),
+            lambda r, own, other, a, b: r.find_by_company(
+                own, workspace_id="ws-A", company="ONLY"),
+            lambda r, own, other, a, b: r.find_by_company(
+                own, workspace_id="ws-A", company="shar", metric="revenue"),
+            lambda r, own, other, a, b: r.find_by_company(
+                own, workspace_id="ws-B", company="SHARED"),
+            lambda r, own, other, a, b: r.find_by_company(
+                own, workspace_id="ws-A", company="SHARED", fiscal_year=2025,
+                quarter="Q1"),
+            lambda r, own, other, a, b: r.find_by_company(
+                own, workspace_id="ws-A", company="SHA*ED"),
+            lambda r, own, other, a, b: r.detach_document(own, b["document_id"]),
         ],
     ),
     Case(
@@ -349,6 +386,30 @@ class TestReadMatrix:
                     f"{case_obj.collection}: probe leaked tenant "
                     f"{record.get('tenant_id')!r} into {ctx_a.tenant_id!r}"
                 )
+
+
+class TestScalarReturningDomainMethods:
+    """``distinct_years`` returns bare ints, so the read matrix's per-record
+    tenant assertion has nothing to inspect. Its scoping is asserted directly."""
+
+    def test_distinct_years_cannot_see_another_tenants_documents(
+        self, db, run, ctx_a, ctx_b
+    ):
+        repo = DocumentRepository()
+        run(repo.insert_one(ctx_a, {"title": "a doc", "workspace_id": "ws-A",
+                                    "year": 2025, "status": "ready"}))
+        run(repo.insert_one(ctx_a, {"title": "a undated doc", "workspace_id": "ws-A",
+                                    "status": "ready"}))
+        run(repo.insert_one(ctx_b, {"title": "b doc", "workspace_id": "ws-B",
+                                    "year": 2024, "status": "ready"}))
+
+        assert run(repo.distinct_years(ctx_a, workspace_id="ws-A",
+                                       status="ready")) == [2025]
+        # Tenant A naming tenant B's workspace must yield nothing, not B's years.
+        assert run(repo.distinct_years(ctx_a, workspace_id="ws-B",
+                                       status="ready")) == []
+        assert run(repo.distinct_years(ctx_b, workspace_id="ws-B",
+                                       status="ready")) == [2024]
 
 
 # ---------------------------------------------------------------------------
