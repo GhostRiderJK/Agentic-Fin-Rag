@@ -15,31 +15,54 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+import bcrypt
 from fastapi import Depends, Header, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import AuthError, ForbiddenError, NotFoundError
+from app.core.errors import (
+    AuthError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 from app.db.base import get_db
 from app.db.models import Role, User, Workspace
 
 
-pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+#: bcrypt's own limit. The installed bcrypt 5.x raises past it instead of
+#: truncating, so a longer secret is refused rather than quietly weakened.
+_BCRYPT_MAX_SECRET_BYTES = 72
+#: What passlib used, so hashes already stored in a database still verify.
+_BCRYPT_ROUNDS = 12
+
 _bearer = HTTPBearer(auto_error=False)
 
 
 def hash_password(p: str) -> str:
-    return pwd.hash(p)
+    encoded = p.encode("utf-8")
+    if len(encoded) > _BCRYPT_MAX_SECRET_BYTES:
+        raise ValidationError(
+            f"password must not exceed {_BCRYPT_MAX_SECRET_BYTES} bytes"
+        )
+    return bcrypt.hashpw(
+        encoded, bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)
+    ).decode("ascii")
 
 
 def verify_password(p: str, hashed: str) -> bool:
+    if not hashed:
+        return False
+    encoded = p.encode("utf-8")
+    if len(encoded) > _BCRYPT_MAX_SECRET_BYTES:
+        # hash_password() could never have stored it, so it cannot match.
+        return False
     try:
-        return pwd.verify(p, hashed)
-    except Exception:
+        return bcrypt.checkpw(encoded, hashed.encode("ascii"))
+    except ValueError:
         return False
 
 

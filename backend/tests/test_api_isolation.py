@@ -482,28 +482,37 @@ class TestAuthRoutes:
         with db_scope() as db:
             assert db.scalar(select(User).where(User.tenant_id == unclaimed_id)) is None
 
-    @pytest.mark.xfail(
-        reason=(
-            "passlib 1.7.4 cannot run its bcrypt backend-detection against the "
-            "installed bcrypt 5.0.0: the probe secret is longer than 72 bytes and "
-            "bcrypt refuses it, so hash_password() raises on first use and every "
-            "password is unusable. API-key auth works, which is why the rest of "
-            "the suite is green. Fixed in item (h)."
-        ),
-        strict=True,
-    )
-    def test_a_user_can_be_created_with_a_password(self, client, actors):
-        r = client.post(
+    def test_a_user_can_be_created_with_a_password_and_logs_in(self, client, actors):
+        """Password auth was dead before passlib was dropped: ``hash_password``
+        raised on its first call, so no user could hold a password and
+        ``/auth/login`` could not succeed for anybody. API keys were the only
+        working credential, which is what kept this invisible."""
+        email = f"pw-{_tag()}@x.test"
+        created = client.post(
             "/auth/users",
             json={
-                "email": f"pw-{_tag()}@x.test",
+                "email": email,
                 "tenant_id": actors[0].tenant_id,
                 "role": "analyst",
                 "password": "correct horse battery staple",
             },
             headers=actors[0].headers,
         )
-        assert r.status_code == 200
+        assert created.status_code == 200, created.text
+
+        logged_in = client.post(
+            "/auth/login",
+            json={"email": email, "password": "correct horse battery staple"},
+        )
+        assert logged_in.status_code == 200, logged_in.text
+        token = logged_in.json()["access_token"]
+
+        me = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert me.status_code == 200
+        assert me.json()["tenant_id"] == actors[0].tenant_id
+
+        wrong = client.post("/auth/login", json={"email": email, "password": "nope"})
+        assert wrong.status_code == 401
 
     @pytest.mark.xfail(
         reason=(
@@ -598,8 +607,8 @@ COVERAGE: dict = {
     ("POST", "/auth/tenants"): "test_tenant_creation_requires_credentials",
     ("POST", "/auth/users"): "test_admin_cannot_add_a_user_to_another_tenant / "
                              "test_anonymous_user_cannot_claim_an_unclaimed_tenant",
-    ("POST", "/auth/login"): "test_a_user_can_be_created_with_a_password / "
-                             "test_the_user_schema_does_not_expose_the_api_key",
+    ("POST", "/auth/login"): "test_a_user_can_be_created_with_a_password_and_logs_in"
+                             " / test_the_user_schema_does_not_expose_the_api_key",
     ("GET", "/auth/me"): "test_me_does_not_reveal_the_api_key",
     ("POST", "/workspaces"): "every actor is created through it; rows are stamped "
                              "with the caller's tenant",

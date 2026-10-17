@@ -17,7 +17,7 @@ code and services on this machine, not against a plan.
 ## Test suite
 
 > Snapshot of the pre-round baseline. Current count, with `mongo-test` running
-> and `REQUIRE_MONGO=1`: **778 passed, 8 xfailed, 0 skipped.** The xfails are
+> and `REQUIRE_MONGO=1`: **789 passed, 7 xfailed, 0 skipped.** The xfails are
 > the route-level holes listed under *(e)*, each pinned to the item that closes
 > it. See *Round progress* below.
 
@@ -282,20 +282,50 @@ red the moment it is fixed):**
 | `POST /auth/tenants` | no authentication at all (`app/api/auth.py:36`): anyone can create tenants | (h) |
 | `POST /auth/users` | trusts the caller-supplied `tenant_id` whenever that tenant has no users yet (`app/api/auth.py:58`), so an anonymous request can make itself admin of any unclaimed tenant | (h) |
 | `GET /auth/me`, `UserOut` | the API key is stored in plaintext and handed back by every user response | (h) |
-| password auth | **not a leak, a break:** passlib 1.7.4 cannot run its bcrypt backend detection against the installed bcrypt 5.0.0 (its probe secret exceeds bcrypt's 72-byte limit), so `hash_password()` raises `ValueError` on first use — creating a user with a password dies (a 500 in a running server) and `/auth/login` can therefore never succeed. API-key auth is the only working path, which is why this stayed invisible | (h) |
+| password auth | **not a leak, a break:** passlib 1.7.4 cannot run its bcrypt backend detection against the installed bcrypt 5.0.0 (its probe secret exceeds bcrypt's 72-byte limit), so `hash_password()` raises `ValueError` on first use — creating a user with a password dies (a 500 in a running server) and `/auth/login` can therefore never succeed. API-key auth is the only working path, which is why this stayed invisible | **fixed**, see below |
 
 Two further observations that are not route leaks but are recorded for (f):
 `users.email` is globally unique in SQL while the Mongo index plan makes it
 unique *per tenant*, so the login lookup must be re-scoped during migration; and
 `test_smoke`'s "eval run" step in its docstring is never actually exercised.
 
+```
+tests/test_api_isolation.py                          ->  22 passed, 8 xfailed
+whole backend suite, REQUIRE_MONGO=1, mongo-test up   ->  778 passed, 8 xfailed, 0 skipped
+```
+
 Incidental fix: the local Qdrant client's destructor was running during
 interpreter shutdown and printing an `ImportError` that no test caused; the
 session fixture in `tests/conftest.py` now closes it explicitly.
 
+### Password hashing: passlib dropped, login works again — DONE, verified
+
+Approved before starting: the auth router migration in (f) would otherwise have
+ported a login path that cannot work. `app/core/security.py` now calls `bcrypt`
+directly (same `$2b$` ident, same cost 12 passlib used, so existing hashes still
+verify) and `passlib[bcrypt]` is replaced by `bcrypt>=4.0` in
+`backend/pyproject.toml`.
+
+Behaviour pinned by `tests/test_password_hashing.py` (10 tests):
+
+- round trip, wrong password, salted-and-distinct, `$2b$12$` format/length.
+- `password_hash=""` (a user created without a password) can never log in,
+  including against an empty request.
+- a malformed stored hash returns False instead of raising — passlib's blanket
+  `except Exception` hid that class of bug rather than handling it.
+- non-ascii secrets work.
+- the 72-**byte** limit is inclusive and measured in bytes, not characters: a
+  longer secret is refused with a 422 rather than silently folded to 72 bytes,
+  which would have made different passphrases the same credential. On the login
+  side an over-long secret simply cannot match.
+
+The strict xfail on `test_a_user_can_be_created_with_a_password` then flipped to
+a failure exactly as designed, and was replaced by
+`test_a_user_can_be_created_with_a_password_and_logs_in`, which now also proves
+the JWT it returns authenticates `/auth/me` and that a wrong password gets 401.
+
 ```
-tests/test_api_isolation.py                          ->  22 passed, 8 xfailed
-whole backend suite, REQUIRE_MONGO=1, mongo-test up   ->  778 passed, 8 xfailed, 0 skipped
+whole backend suite, REQUIRE_MONGO=1  ->  789 passed, 7 xfailed, 0 skipped
 ```
 
 ### Checkpoint decisions 2 and 4 — DONE, verified
