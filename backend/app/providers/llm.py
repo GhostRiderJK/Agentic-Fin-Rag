@@ -265,7 +265,8 @@ class StubLLM(BaseLLM):
 class OpenAIChatLLM(BaseLLM):
     name = "openai"
 
-    def __init__(self) -> None:
+    def __init__(self, *, api_key: str | None = None, base_url: str | None = None,
+                 model: str | None = None) -> None:
         from app.core.errors import ProviderError
 
         try:
@@ -273,11 +274,12 @@ class OpenAIChatLLM(BaseLLM):
         except ImportError as e:  # pragma: no cover
             raise ProviderError("openai package not installed") from e
         settings = get_settings()
-        api_key = settings.openai_api_key.get_secret_value()
-        if not api_key:
+        key = settings.openai_api_key.get_secret_value() if api_key is None else api_key
+        if not key:
             raise ProviderError("OPENAI_API_KEY is not set")
-        self._client = OpenAI(api_key=api_key)
-        self._model = settings.openai_chat_model
+        self._client = OpenAI(api_key=key,
+                              **({"base_url": base_url} if base_url else {}))
+        self._model = model or settings.openai_chat_model
 
     def chat(self, messages, *, tools=None, temperature=0.2, max_tokens=None, stop=None):
         from app.core.errors import ProviderError, ProviderTransientError
@@ -403,6 +405,26 @@ def _to_openai_tool(spec: ToolSpec) -> dict:
 # ---------------------------------------------------------------------------
 
 
+class OmnirouteLLM(OpenAIChatLLM):
+    """The self-hosted OpenAI-compatible gateway.
+
+    Same wire protocol, different endpoint, key and model id, so only the
+    constructor differs.
+    """
+
+    name = "omniroute"
+
+    def __init__(self) -> None:
+        from app.core.errors import ProviderError
+
+        settings = get_settings()
+        key = settings.omniroute_api_key.get_secret_value()
+        if not key:
+            raise ProviderError("LLM_API_KEY / OMNIROUTE_API_KEY is not set")
+        super().__init__(api_key=key, base_url=settings.omniroute_base_url,
+                         model=settings.chat_model)
+
+
 class AnthropicLLM(BaseLLM):
     name = "anthropic"
 
@@ -499,6 +521,13 @@ def get_llm() -> BaseLLM:
             _llm_singleton = AnthropicLLM()
     elif provider == "ollama":
         _llm_singleton = OllamaLLM()
+    elif provider == "omniroute":
+        if not settings.omniroute_api_key.get_secret_value():
+            log.warning("LLM_PROVIDER=omniroute but LLM_API_KEY/OMNIROUTE_API_KEY "
+                        "unset; falling back to stub LLM")
+            _llm_singleton = StubLLM()
+        else:
+            _llm_singleton = OmnirouteLLM()
     else:
         _llm_singleton = StubLLM()
     return _llm_singleton
