@@ -114,8 +114,11 @@ def ingest_document(
     tables_by_page: dict[int, list[str]] = {}
     for tbl in parsed.tables:
         tables_by_page.setdefault(tbl.page, []).append(tbl.markdown)
-    chunk_result: ChunkingResult = chunk_document(cleaned_text,
-                                                  tables_by_page=tables_by_page)
+    chunk_result: ChunkingResult = chunk_document(
+        cleaned_text,
+        pages=[(pg.page, txt) for pg, txt in zip(parsed.pages, cleaned_pages)],
+        tables_by_page=tables_by_page,
+    )
 
     # 6. Persist Document
     doc = Document(

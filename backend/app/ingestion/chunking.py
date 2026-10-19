@@ -72,11 +72,17 @@ class ChunkingResult:
 def chunk_document(
     text: str,
     *,
+    pages: list[tuple[int, str]] | None = None,
     tables_by_page: dict[int, list[str]] | None = None,
 ) -> ChunkingResult:
-    """Top-level entry: split ``text`` into parent chunks with children."""
+    """Top-level entry: split ``text`` into parent chunks with children.
+
+    ``pages`` is [(page_number, page_text)] and is what makes citations point at
+    a real page; ``text`` alone is the single-page case (TXT, or callers that
+    have no page structure).
+    """
     tables_by_page = tables_by_page or {}
-    sections = _split_sections(text)
+    sections = _split_sections(pages if pages is not None else [(1, text)])
     parents: list[ParentChunk] = []
     for section_title, section_text, section_page in sections:
         for paragraph in _split_paragraphs(section_text):
@@ -133,33 +139,40 @@ def chunk_document(
 # ---------------------------------------------------------------------------
 
 
-def _split_sections(text: str) -> list[tuple[str, str, int]]:
-    """Return [(section_title, section_text, page=1), ...].
+def _split_sections(pages: list[tuple[int, str]]) -> list[tuple[str, str, int]]:
+    """Return [(section_title, section_text, page), ...].
 
-    Sections are detected by ALL-CAPS / 'ITEM N' style headers. Text before
-    the first header is assigned section "Introduction". Pages are not yet
-    tracked at this layer; page detection happens earlier (parser) — we keep
-    section-level page=1 here and rely on metadata extraction to attach
-    page numbers if available.
+    Sections are detected by ALL-CAPS / 'ITEM N' style headers. A header stays
+    current across a page break, but the body it yields is always page-bounded,
+    so every chunk carries the page its text actually came from. A section that
+    runs over three pages becomes three chunks on pages 12, 13, 14 rather than
+    one chunk claiming page 1.
     """
-    matches = list(_SECTION_HEADERS_RE.finditer(text)) or list(
-        _TRANSCRIPT_HEADER_RE.finditer(text)
-    )
-    if not matches:
-        return [("", text, 1)]
+    pages = [(p, t) for p, t in pages if t.strip()]
+    if not pages:
+        return []
+    header_re = (_SECTION_HEADERS_RE
+                 if any(_SECTION_HEADERS_RE.search(t) for _, t in pages)
+                 else _TRANSCRIPT_HEADER_RE)
+    if not any(header_re.search(t) for _, t in pages):
+        return [("", t.strip(), p) for p, t in pages]
+
     sections: list[tuple[str, str, int]] = []
-    if matches[0].start() > 0:
-        pre = text[: matches[0].start()].strip()
-        if pre:
-            sections.append(("Introduction", pre, 1))
-    for i, m in enumerate(matches):
-        title = (m.group("title") or "").strip()[:120]
-        body_start = m.end()
-        body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        body = text[body_start:body_end].strip()
-        if body:
-            sections.append((title, body, 1))
-    return sections or [("", text, 1)]
+    current = ""
+    for page_no, text in pages:
+        pos = 0
+        for m in header_re.finditer(text):
+            title = (m.group("title") or "").strip()[:120]
+            body = text[pos:m.start()]
+            if body.strip():
+                sections.append((current or "Introduction", body.strip(), page_no))
+            if title:
+                current = title
+            pos = m.end()
+        tail = text[pos:]
+        if tail.strip():
+            sections.append((current or "Introduction", tail.strip(), page_no))
+    return sections
 
 
 def _split_paragraphs(section_text: str) -> list[str]:

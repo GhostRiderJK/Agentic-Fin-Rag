@@ -55,6 +55,34 @@ def test_chunking_parent_child():
         assert all(len(c.text) > 0 for c in p.children)
 
 
+def test_chunking_keeps_every_chunk_on_the_page_it_came_from():
+    """The parser knows page numbers; chunking used to discard them and stamp
+    page=1 on all ~1,000 chunks of a real 80-page report, which made every PDF
+    citation point at the cover."""
+    from app.ingestion.chunking import chunk_document
+
+    body = "ACME makes widgets and the segment grew 12 percent year over year. "
+    pages = [
+        (1, "1. BUSINESS OVERVIEW\n\n" + body * 8),
+        # same section, continues here with no repeated header
+        (2, body * 8),
+        (3, "2. RISK FACTORS\n\n" + "The company faces competition. " * 8),
+    ]
+    result = chunk_document("\n\n".join(t for _, t in pages), pages=pages,
+                            tables_by_page={3: ["| Revenue | 120,000 |"]})
+
+    assert {p.page for p in result.parents} == {1, 2, 3}
+    for parent in result.parents:
+        assert parent.page in {c.page for c in parent.children} or not parent.children
+        assert body.strip() in parent.text or "competition" in parent.text
+    # The section title survives the page break it spans.
+    spanning = [p for p in result.parents if p.section == "BUSINESS OVERVIEW"]
+    assert {p.page for p in spanning} == {1, 2}
+    # Tables attach by page, so only the page-3 parent carries one.
+    assert [p.tables_md for p in result.parents if p.page == 3]
+    assert not any(p.tables_md for p in result.parents if p.page != 3)
+
+
 def test_table_extractor_extracts_financials():
     from app.ingestion.parser import TableExtract
     from app.ingestion.tables import extract_financials
