@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 
 from app.core.logging import get_logger
-from app.db.models import DocumentType
+from app.db.enums import DocumentType
 from app.ingestion.parser import ParsedDocument
 
 log = get_logger(__name__)

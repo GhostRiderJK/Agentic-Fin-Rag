@@ -1,13 +1,8 @@
-"""ORM models for the relational store.
+"""ORM models still owned by the relational store.
 
-This is the *structured knowledge* side of the dual knowledge system:
-tenants/workspaces/users, document metadata + lifecycle, parent/child chunk
-records, structured financials (the SQL tool-calling target), conversations,
-jobs, and evaluation runs.
-
-The vector content lives in Qdrant; this table keeps the authoritative metadata,
-status, and references so we can scope queries, manage lifecycle, and run
-tool-calling for numeric facts.
+Documents, chunks and structured financials now live in MongoDB (see
+``app.db.mongodb.repositories``); what remains here is the tenancy spine and
+the rows the chat, job and eval paths still write.
 """
 
 from __future__ import annotations
@@ -24,16 +19,13 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
-    Index,
     Integer,
     String,
     Text,
-    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -90,145 +82,6 @@ class Workspace(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
     tenant: Mapped[Tenant] = relationship(back_populates="workspaces")
-    documents: Mapped[list[Document]] = relationship(back_populates="workspace")
-
-
-# ---------- Documents & chunks -------------------------------------------------
-
-
-class DocumentStatus(str, enum.Enum):
-    active = "active"
-    superseded = "superseded"
-    archived = "archived"
-
-
-class DocumentType(str, enum.Enum):
-    annual_report = "annual_report"
-    quarterly_report = "quarterly_report"
-    earnings_call = "earnings_call"
-    investor_presentation = "investor_presentation"
-    sustainability_report = "sustainability_report"
-    news = "news"
-    research_note = "research_note"
-    other = "other"
-
-
-class Document(Base):
-    __tablename__ = "documents"
-
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    workspace_id: Mapped[str] = mapped_column(
-        ForeignKey("workspaces.id", ondelete="CASCADE")
-    )
-    title: Mapped[str] = mapped_column(String(512), nullable=False)
-    filename: Mapped[str] = mapped_column(String(512), nullable=False)
-    file_path: Mapped[str] = mapped_column(String(1024), default="")
-    mime_type: Mapped[str] = mapped_column(String(128), default="")
-    doc_type: Mapped[DocumentType] = mapped_column(
-        Enum(DocumentType), default=DocumentType.other
-    )
-    company: Mapped[str] = mapped_column(String(255), default="")
-    ticker: Mapped[str] = mapped_column(String(32), default="")
-    year: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    quarter: Mapped[str] = mapped_column(String(8), default="")
-    section: Mapped[str] = mapped_column(String(128), default="")
-    status: Mapped[DocumentStatus] = mapped_column(
-        Enum(DocumentStatus), default=DocumentStatus.active
-    )
-    # Extraction pipeline output kept as JSON for inspection/debug
-    parse_meta: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=_utcnow, onupdate=_utcnow
-    )
-
-    workspace: Mapped[Workspace] = relationship(back_populates="documents")
-    chunks: Mapped[list[Chunk]] = relationship(
-        back_populates="document", cascade="all, delete-orphan"
-    )
-
-
-class Chunk(Base):
-    """Parent or child chunk. Child chunks reference their parent (parent
-    expansion). Only child chunks are embedded; the parent text is fed to the
-    LLM."""
-
-    __tablename__ = "chunks"
-
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    document_id: Mapped[str] = mapped_column(
-        ForeignKey("documents.id", ondelete="CASCADE")
-    )
-    parent_id: Mapped[str | None] = mapped_column(
-        ForeignKey("chunks.id", ondelete="SET NULL"), nullable=True
-    )
-    is_parent: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Human-readable text content (parent = full section/paragraph; child = search target)
-    text: Mapped[str] = mapped_column(Text, nullable=False)
-    # Section / page / location metadata
-    section: Mapped[str] = mapped_column(String(255), default="")
-    page: Mapped[int] = mapped_column(Integer, default=0)
-    char_start: Mapped[int] = mapped_column(Integer, default=0)
-    char_end: Mapped[int] = mapped_column(Integer, default=0)
-    # Markdown tables extracted from this chunk (if any)
-    tables_md: Mapped[str] = mapped_column(Text, default="")
-    # Vector DB point id (Qdrant)
-    vector_point_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    token_count: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
-
-    document: Mapped[Document] = relationship(back_populates="chunks")
-    children: Mapped[list[Chunk]] = relationship(
-        back_populates="parent", remote_side="Chunk.id"
-    )
-    parent: Mapped[Chunk | None] = relationship(back_populates="children", remote_side="Chunk.parent_id")
-
-    __table_args__ = (
-        Index("ix_chunks_document_id", "document_id"),
-        Index("ix_chunks_parent_id", "parent_id"),
-    )
-
-
-# ---------- Structured financials (the SQL tool-calling target) ---------------
-
-
-class StructuredFinancial(Base):
-    """One (company, metric, period, value, unit) row.
-
-    This is the dual to the vector DB: numeric facts are stored relationally
-    so the analyst agent can call SQL tools instead of asking the LLM to
-    recite numbers it can't reliably remember.
-    """
-
-    __tablename__ = "structured_financials"
-
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    workspace_id: Mapped[str] = mapped_column(
-        ForeignKey("workspaces.id", ondelete="CASCADE")
-    )
-    document_id: Mapped[str | None] = mapped_column(
-        ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
-    )
-    company: Mapped[str] = mapped_column(String(255), nullable=False)
-    ticker: Mapped[str] = mapped_column(String(32), default="")
-    metric: Mapped[str] = mapped_column(String(128), nullable=False)
-    fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False)
-    quarter: Mapped[str] = mapped_column(String(8), default="")  # "" = full year
-    value: Mapped[float] = mapped_column(Float, nullable=False)
-    unit: Mapped[str] = mapped_column(String(32), default="USD")
-    currency: Mapped[str] = mapped_column(String(8), default="USD")
-    confidence: Mapped[float] = mapped_column(Float, default=1.0)
-    page: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
-
-    __table_args__ = (
-        UniqueConstraint(
-            "company", "ticker", "metric", "fiscal_year", "quarter", "unit",
-            name="uq_financials_company_metric_period",
-        ),
-        Index("ix_financials_company", "company"),
-        Index("ix_financials_metric", "metric"),
-    )
 
 
 # ---------- Conversations ------------------------------------------------------

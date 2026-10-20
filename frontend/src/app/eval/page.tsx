@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppShell";
 import { ConnectionGate } from "@/components/ConnectionGate";
 import { WorkspacePicker } from "@/components/WorkspacePicker";
-import { api, type EvalRun } from "@/lib/api";
+import { api, type EvalRun, type EvalSuite, type Job } from "@/lib/api";
 
 const METRIC_LABELS: Record<string, string> = {
   faithfulness: "Faithfulness",
@@ -15,42 +15,92 @@ const METRIC_LABELS: Record<string, string> = {
   numeric_accuracy: "Numeric accuracy",
 };
 
+// A suite run takes minutes, so it is polled rather than awaited: a single
+// request held open that long is cut off by the Next /api proxy at 30s.
+const POLL_MS = 2000;
+
 export default function EvalPage() {
   const { apiKey, workspaceId } = useApp();
   const [runs, setRuns] = useState<EvalRun[]>([]);
+  const [suites, setSuites] = useState<EvalSuite[]>([]);
+  const [suiteId, setSuiteId] = useState("packaged");
+  const [job, setJob] = useState<Job | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function refresh() {
     if (!apiKey) return;
     try {
-      const r = await api.listEvalRuns(apiKey);
-      setRuns(r);
+      setRuns(await api.listEvalRuns(apiKey));
     } catch (e) {
       setErr((e as Error).message);
     }
   }
 
-  useEffect(() => { refresh(); }, [apiKey]);
+  useEffect(() => {
+    if (!apiKey) return;
+    api.listEvalSuites(apiKey)
+      .then((s) => {
+        setSuites(s);
+        setSuiteId((cur) => (s.some((x) => x.id === cur) ? cur : s[0]?.id ?? "packaged"));
+      })
+      .catch(() => setSuites([]));
+    refresh();
+  }, [apiKey]);
+
+  useEffect(() => () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+  }, []);
 
   if (!apiKey) return <ConnectionGate />;
 
+  function stopPolling() {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = null;
+    setBusy(false);
+  }
+
   async function run() {
-    if (!apiKey || !workspaceId) return;
-    setBusy(true); setErr(null);
+    if (!apiKey || !workspaceId || busy) return;
+    setBusy(true); setErr(null); setJob(null);
     try {
-      await api.runEval(apiKey, workspaceId);
-      await refresh();
+      const accepted = await api.runEval(apiKey, workspaceId, suiteId);
+      pollRef.current = setInterval(async () => {
+        if (!apiKey) return;
+        let j: Job;
+        try {
+          j = await api.getJob(apiKey, accepted.job_id);
+        } catch (e) {
+          setErr((e as Error).message);
+          stopPolling();
+          return;
+        }
+        setJob(j);
+        if (j.status === "succeeded" || j.status === "failed") {
+          stopPolling();
+          if (j.status === "failed") setErr(j.error || "eval job failed");
+          await refresh();
+        }
+      }, POLL_MS);
     } catch (e) {
       setErr((e as Error).message);
-    } finally {
-      setBusy(false);
+      stopPolling();
     }
   }
 
+  const finished = job?.status === "succeeded" ? job : null;
+  const liveMetrics = (finished?.result?.metrics ?? {}) as Record<string, number>;
+  const hasLive = Object.keys(liveMetrics).length > 0;
   const latest = runs[0];
-  const metrics = latest?.metrics ?? {};
+  const metrics = hasLive ? liveMetrics : latest?.metrics ?? {};
   const meanKeys = Object.keys(metrics).filter((k) => k.startsWith("mean_"));
+  const shownSuite = hasLive
+    ? String(finished?.result?.suite ?? suiteId)
+    : latest?.suite;
+  const shownItems = hasLive
+    ? Number(finished?.result?.n_items ?? 0)
+    : latest?.n_items;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-12 gap-4">
@@ -59,13 +109,38 @@ export default function EvalPage() {
         <div className="bg-white border rounded-lg p-3 space-y-2">
           <div className="text-xs font-medium text-slate-500">Evaluation</div>
           <p className="text-[11px] text-slate-500">
-            Runs the gold Q&amp;A suite through the full pipeline and records
+            Runs a gold Q&amp;A suite through the full pipeline and records
             faithfulness, retrieval, citation, and numeric-accuracy metrics.
           </p>
+
+          <label className="block text-[11px] text-slate-500">
+            Suite
+            <select
+              value={suiteId}
+              onChange={(e) => setSuiteId(e.target.value)}
+              disabled={busy}
+              className="mt-1 w-full border rounded px-2 py-1 text-xs bg-white disabled:opacity-50"
+            >
+              {suites.length === 0 && <option value="packaged">packaged</option>}
+              {suites.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.id} — {s.n_items} items{s.packaged ? " (seeded)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <button onClick={run} disabled={busy || !workspaceId}
             className="w-full bg-brand-600 text-white text-sm py-1.5 rounded hover:bg-brand-700 disabled:opacity-50">
             {busy ? "Running…" : "Run eval suite"}
           </button>
+
+          {busy && (
+            <div className="text-[11px] text-slate-500">
+              job {job?.status ?? "queued"} — this takes a few minutes; you can
+              leave this page, the run continues.
+            </div>
+          )}
         </div>
       </aside>
 
@@ -75,41 +150,41 @@ export default function EvalPage() {
           <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded p-2">{err}</div>
         )}
 
-        {latest ? (
-          <>
-            <div className="bg-white border rounded-lg p-4">
-              <div className="flex items-baseline justify-between mb-3">
-                <h2 className="font-semibold">Latest run</h2>
-                <div className="text-xs text-slate-500">
-                  {new Date(latest.created_at).toLocaleString()} · {latest.n_items} items
-                </div>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {meanKeys.map((k) => {
-                  const key = k.replace("mean_", "");
-                  const mean = metrics[k];
-                  const pass = metrics[`pass_${key}`] ?? 0;
-                  return (
-                    <div key={k} className="border rounded-lg p-3">
-                      <div className="text-xs text-slate-500">
-                        {METRIC_LABELS[key] || key}
-                      </div>
-                      <div className={`text-2xl font-semibold ${scoreColor(mean)}`}>
-                        {mean.toFixed(2)}
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-1">
-                        pass-rate {(pass * 100).toFixed(0)}%
-                      </div>
-                      <Bar value={mean} />
-                    </div>
-                  );
-                })}
+        {meanKeys.length > 0 ? (
+          <div className="bg-white border rounded-lg p-4">
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 className="font-semibold">
+                {hasLive ? "Latest run" : "Previous run"}
+              </h2>
+              <div className="text-xs text-slate-500">
+                {shownSuite} · {shownItems} items
               </div>
             </div>
-          </>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {meanKeys.map((k) => {
+                const key = k.replace("mean_", "");
+                const mean = metrics[k];
+                const pass = metrics[`pass_${key}`] ?? 0;
+                return (
+                  <div key={k} className="border rounded-lg p-3">
+                    <div className="text-xs text-slate-500">
+                      {METRIC_LABELS[key] || key}
+                    </div>
+                    <div className={`text-2xl font-semibold ${scoreColor(mean)}`}>
+                      {mean.toFixed(2)}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-1">
+                      pass-rate {(pass * 100).toFixed(0)}%
+                    </div>
+                    <Bar value={mean} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         ) : (
           <div className="bg-white border rounded-lg p-8 text-center text-slate-500 text-sm">
-            No evaluation runs yet. Click “Run eval suite” to start.
+            No evaluation runs yet. Pick a suite and click “Run eval suite”.
           </div>
         )}
 
@@ -120,6 +195,7 @@ export default function EvalPage() {
               <thead className="bg-slate-50 text-xs text-slate-500">
                 <tr>
                   <th className="text-left p-2">When</th>
+                  <th className="text-left p-2">Suite</th>
                   <th className="text-left p-2">Items</th>
                   <th className="text-left p-2">Faithfulness</th>
                   <th className="text-left p-2">Numeric acc.</th>
@@ -130,6 +206,7 @@ export default function EvalPage() {
                 {runs.map((r) => (
                   <tr key={r.id} className="border-t">
                     <td className="p-2 text-xs">{new Date(r.created_at).toLocaleString()}</td>
+                    <td className="p-2 text-xs">{r.suite}</td>
                     <td className="p-2 text-xs">{r.n_items}</td>
                     <td className="p-2 text-xs">{(r.metrics.mean_faithfulness ?? 0).toFixed(2)}</td>
                     <td className="p-2 text-xs">{(r.metrics.mean_numeric_accuracy ?? 0).toFixed(2)}</td>

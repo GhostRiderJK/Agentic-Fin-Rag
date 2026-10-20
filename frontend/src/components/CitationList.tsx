@@ -20,9 +20,17 @@ export function CitationList({ citations }: { citations: Citation[] }) {
               {c.quarter ? ` ${c.quarter}` : ""}
             </span>
             <span className="ml-auto text-[10px] text-slate-500">
-              {c.doc_type} · p.{c.page}
+              {c.doc_type} · {c.page_number_type === "printed" ? `printed p.${c.printed_page ?? c.page}` : `PDF p.${c.physical_page ?? c.page}`}
+              {c.page_number_type === "printed" && c.physical_page != null
+                ? ` · PDF p.${c.physical_page}`
+                : ""}
             </span>
           </div>
+          {c.source_filename && (
+            <div className="text-slate-500 mt-1 truncate" title={c.source_filename}>
+              {c.source_filename}
+            </div>
+          )}
           <div className="text-slate-600 mt-1 line-clamp-3">{c.snippet}</div>
         </li>
       ))}
@@ -37,6 +45,7 @@ export function VerificationBadge({ outcome }: { outcome: string }) {
     rejected: { label: "Rejected", cls: "bg-rose-50 text-rose-700" },
     not_applicable: { label: "N/A", cls: "bg-slate-100 text-slate-600" },
     no_context: { label: "No context", cls: "bg-slate-100 text-slate-600" },
+    stub_not_evaluated: { label: "Test stub", cls: "bg-slate-100 text-slate-600" },
   };
   const v = map[outcome] || { label: outcome, cls: "bg-slate-100 text-slate-600" };
   return (

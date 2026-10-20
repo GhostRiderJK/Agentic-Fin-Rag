@@ -19,7 +19,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-
 _SECTION_HEADERS_RE = re.compile(
     r"(?m)^\s{0,4}(?P<header>(?:[0-9]+\.?){1,4}\s+)?"
     r"(?P<title>(?:ITEM\s+\d+[A-Z]?|RISK FACTORS|MANAGEMENT[\'\u2019]S DISCUSSION|"
@@ -210,7 +209,18 @@ def _split_children(paragraph: str) -> list[str]:
             buf = ""
     if buf:
         chunks.append(buf)
-    return chunks
+    # Keep a small tail of the preceding child at each boundary. Numeric
+    # labels and their values often land on opposite sides of a fixed-size
+    # split in annual-report pages; overlap keeps the association searchable.
+    overlapped = [chunks[0]] if chunks else []
+    for previous, current in zip(chunks, chunks[1:], strict=False):
+        overlap_start = max(0, len(previous) - 220)
+        while overlap_start < len(previous) and not previous[overlap_start].isspace():
+            overlap_start += 1
+        prefix = previous[overlap_start:].strip()
+        candidate = f"{prefix} {current}".strip()
+        overlapped.append(candidate if len(candidate) <= _CHILD_MAX_CHARS else current)
+    return overlapped
 
 
 def _tables_for(page: int, tables_by_page: dict[int, list[str]]) -> str:

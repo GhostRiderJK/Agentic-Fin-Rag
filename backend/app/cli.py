@@ -125,6 +125,7 @@ def ingest(
 
     from app.db.base import db_scope, init_db
     from app.db.models import Workspace
+    from app.db.mongodb.tenant_context import TenantContext
     from app.ingestion.pipeline import ingest_document
 
     init_db()
@@ -139,7 +140,8 @@ def ingest(
             raise typer.Exit(1)
         console.print(f"Ingesting [bold]{file}[/bold] into workspace {ws.id}…")
         result = ingest_document(
-            file_path=file, workspace_id=ws.id, db=db,
+            TenantContext(tenant_id=ws.tenant_id, workspace_id=ws.id),
+            file_path=file,
             hint_company=company, hint_ticker=ticker,
             hint_year=year or None, hint_quarter=quarter,
         )
@@ -148,6 +150,27 @@ def ingest(
             f"(parents={result.n_parents} children={result.n_children} "
             f"tables={result.n_tables} financials={result.n_financials})"
         )
+
+
+@app.command("reindex-nomic")
+def reindex_nomic_cmd(
+    tenant_id: str = typer.Option(..., help="Tenant owning the existing documents"),
+    workspace_id: str = typer.Option(..., help="Workspace to reindex"),
+    batch_size: int = typer.Option(64, min=1, help="Chunks per embedding/upsert batch"),
+    apply: bool = typer.Option(False, "--apply", help="Write vectors after the one-document preflight"),
+    all_documents: bool = typer.Option(False, "--all-documents", help="Process all matching documents instead of one representative document"),
+):
+    """Preview, then optionally re-embed chunks into chunks_nomic768_test only."""
+    from app.ingestion.reindex import reindex_existing_chunks
+
+    report = reindex_existing_chunks(
+        tenant_id=tenant_id, workspace_id=workspace_id, batch_size=batch_size,
+        dry_run=not apply,
+        document_limit=None if all_documents else 1,
+    )
+    console.print_json(json.dumps(report.as_dict(), default=str))
+    if report.chunks_failed:
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -160,6 +183,7 @@ def eval_cmd(
 
     from app.db.base import db_scope, init_db
     from app.db.models import Workspace
+    from app.db.mongodb.tenant_context import TenantContext
     from app.evaluation.harness import EvalRunner, EvalSuite
 
     init_db()
@@ -175,7 +199,8 @@ def eval_cmd(
             console.print("[red]✗[/red] no workspace found.")
             raise typer.Exit(1)
         s = EvalSuite.from_jsonl(suite_path, workspace_id=ws.id)
-        runner = EvalRunner(db)
+        runner = EvalRunner(db, TenantContext(tenant_id=ws.tenant_id,
+                                              workspace_id=ws.id))
         result = runner.run(s, persist=True)
         table = Table(title=f"Eval: {result.suite} ({result.n_items} items)")
         table.add_column("Metric")
@@ -201,6 +226,7 @@ def ask(
 
     from app.db.base import db_scope, init_db
     from app.db.models import Workspace
+    from app.db.mongodb.tenant_context import TenantContext
     from app.reasoning.orchestrator import AnswerRequest, Orchestrator
 
     init_db()
@@ -213,7 +239,8 @@ def ask(
         if not ws:
             console.print("[red]✗[/red] no workspace found.")
             raise typer.Exit(1)
-        orch = Orchestrator(db)
+        orch = Orchestrator(TenantContext(tenant_id=ws.tenant_id,
+                                          workspace_id=ws.id))
         resp = orch.answer(AnswerRequest(question=question, workspace_id=ws.id))
         console.print(resp.answer)
         console.print(f"\n[dim]latency={resp.latency_ms}ms "

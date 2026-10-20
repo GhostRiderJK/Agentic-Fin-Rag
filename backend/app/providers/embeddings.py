@@ -19,9 +19,6 @@ from typing import Protocol
 
 from app.core.config import get_settings
 from app.core.errors import ProviderError
-from app.core.logging import get_logger
-
-log = get_logger(__name__)
 
 
 class BaseEmbeddings(Protocol):
@@ -104,13 +101,45 @@ class OpenAIEmbeddings:
     def embed(self, texts: list[str]) -> list[list[float]]:
         from app.core.errors import ProviderError
 
+        if not texts:
+            return []
         # OpenAI recommends replacing newlines for embedding quality
         cleaned = [t.replace("\n", " ").strip() or " " for t in texts]
         try:
-            resp = self._client.embeddings.create(model=self._model, input=cleaned)
+            # The v3 API supports caller-selected dimensions. Other models do
+            # not, so their returned width is checked against the configured
+            # collection width below.
+            params = {"dimensions": self.dim} if self._model.startswith(
+                "text-embedding-3-"
+            ) else {}
+            resp = self._client.embeddings.create(
+                model=self._model, input=cleaned, **params
+            )
         except Exception as e:
             raise ProviderError(f"OpenAI embeddings error: {e}") from e
-        return [list(d.embedding) for d in resp.data]
+        vectors = [list(d.embedding) for d in resp.data]
+        if len(vectors) != len(texts):
+            raise ProviderError(
+                f"OpenAI returned {len(vectors)} vectors for {len(texts)} inputs",
+                provider="openai",
+                model=self._model,
+            )
+        for index, vector in enumerate(vectors):
+            if len(vector) != self.dim:
+                raise ProviderError(
+                    f"EMBEDDING_DIM={self.dim} but model {self._model!r} "
+                    f"returned {len(vector)} dimensions (input {index})",
+                    provider="openai",
+                    model=self._model,
+                )
+        try:
+            return [[float(value) for value in vector] for vector in vectors]
+        except (TypeError, ValueError) as e:
+            raise ProviderError(
+                f"OpenAI embeddings returned a non-numeric vector: {e}",
+                provider="openai",
+                model=self._model,
+            ) from e
 
 
 # ---------------------------------------------------------------------------
@@ -214,10 +243,11 @@ def get_embeddings() -> BaseEmbeddings:
     provider = settings.embeddings_provider
     if provider == "openai":
         if not settings.openai_api_key.get_secret_value():
-            log.warning("EMBEDDINGS_PROVIDER=openai but key unset; using stub")
-            _emb_singleton = StubEmbeddings(dim=settings.embeddings_dim)
-        else:
-            _emb_singleton = OpenAIEmbeddings()
+            raise ProviderError(
+                "OPENAI_API_KEY is required when EMBEDDINGS_PROVIDER=openai",
+                provider="openai",
+            )
+        _emb_singleton = OpenAIEmbeddings()
     elif provider == "ollama":
         # Fail loudly: silently substituting stub vectors would embed tenant
         # documents in a space that no real model can query.

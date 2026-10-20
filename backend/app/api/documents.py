@@ -4,25 +4,42 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Annotated
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi import Path as FastPath
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import workspace_dep
-from app.api.schemas import DocumentOut, DocumentUpdate, IngestResultOut, WorkspaceCreate
-from app.api.schemas import WorkspaceOut
+from app.api.deps import WorkspaceCtxDep
+from app.api.schemas import (
+    DocumentOut,
+    DocumentUpdate,
+    IngestResultOut,
+    WorkspaceCreate,
+    WorkspaceOut,
+)
 from app.core.config import get_settings
 from app.core.errors import NotFoundError, ValidationError
 from app.core.security import CurrentUser, can_write
 from app.db.base import get_db
-from app.db.models import Document, DocumentStatus, DocumentType, Workspace
+from app.db.enums import DocumentStatus, DocumentType
+from app.db.models import Workspace
+from app.db.mongodb.repositories import (
+    ChunkRepository,
+    DocumentRepository,
+    StructuredFinancialRepository,
+)
+from app.db.mongodb.runtime import run_sync
 from app.ingestion.pipeline import ingest_document
-from app.jobs.queue import enqueue_ingest, get_job
+from app.jobs.queue import enqueue_ingest
 from app.providers.vectordb import get_vectordb
 
 router = APIRouter(tags=["documents"])
+
+_documents = DocumentRepository()
+_chunks = ChunkRepository()
+_financials = StructuredFinancialRepository()
 
 
 # ---- Workspaces --------------------------------------------------------------
@@ -53,38 +70,44 @@ def list_workspaces(db: Annotated[Session, Depends(get_db)], user: CurrentUser):
 
 
 @router.post("/workspaces/{workspace_id}/documents", response_model=IngestResultOut)
-async def upload_document(
-    db: Annotated[Session, Depends(get_db)],
-    ws: Annotated[Workspace, Depends(workspace_dep)],
+def upload_document(
+    ctx: WorkspaceCtxDep,
     user: CurrentUser,
-    file: UploadFile = File(...),
+    db: Annotated[Session, Depends(get_db)],
+    file: Annotated[UploadFile, File()],
     title: str | None = Form(None),
     company: str = Form(""),
     ticker: str = Form(""),
     year: int | None = Form(None),
     quarter: str = Form(""),
-    doc_type: DocumentType | None = Form(None),
+    doc_type: Annotated[DocumentType | None, Form()] = None,
     async_ingest: bool = Form(True),
 ):
     can_write(user)
     settings = get_settings()
     # Save uploaded file to local storage
-    suffix = Path(file.filename or "upload").suffix
-    storage_dir = Path(settings.storage_path) / ws.id
+    # Upload names are untrusted and may collide. Keep the original basename
+    # as display metadata, but never use it as the on-disk storage identity.
+    original_name = Path((file.filename or "upload").replace("\\", "/")).name
+    suffix = Path(original_name).suffix
+    storage_dir = Path(settings.storage_path) / ctx.workspace_id
     storage_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = (file.filename or "upload").replace("/", "_")
-    dest = storage_dir / f"{Path(safe_name).stem}_{Path(safe_name).stem[:8]}{suffix}"
-    content = await file.read()
+    dest = storage_dir / f"{uuid4().hex}{suffix}"
+    content = file.file.read()
     if len(content) > settings.upload_max_size_mb * 1024 * 1024:
         raise ValidationError(
             f"file exceeds max size {settings.upload_max_size_mb}MB"
         )
-    dest.write_bytes(content)
+    # Exclusive creation makes accidental UUID/path reuse fail closed instead
+    # of truncating a file that a queued ingestion job may still be reading.
+    with dest.open("xb") as stored_file:
+        stored_file.write(content)
 
     if async_ingest:
         job = enqueue_ingest(
-            db=db, workspace_id=ws.id, tenant_id=user.tenant_id,
-            file_path=str(dest), title=title, company=company, ticker=ticker,
+            db=db, workspace_id=ctx.workspace_id, tenant_id=user.tenant_id,
+            file_path=str(dest), source_name=original_name,
+            title=title, company=company, ticker=ticker,
             year=year, quarter=quarter, doc_type=doc_type,
         )
         return IngestResultOut(
@@ -96,7 +119,7 @@ async def upload_document(
 
     # Synchronous ingest (small files / tests)
     result = ingest_document(
-        file_path=str(dest), workspace_id=ws.id, db=db, title=title,
+        ctx, file_path=str(dest), source_name=original_name, title=title,
         hint_company=company, hint_ticker=ticker, hint_year=year,
         hint_quarter=quarter, hint_doc_type=doc_type,
     )
@@ -119,29 +142,25 @@ async def upload_document(
 
 @router.get("/workspaces/{workspace_id}/documents", response_model=list[DocumentOut])
 def list_documents(
-    db: Annotated[Session, Depends(get_db)],
-    ws: Annotated[Workspace, Depends(workspace_dep)],
+    ctx: WorkspaceCtxDep,
     status: DocumentStatus | None = None,
     company: str | None = None,
 ):
-    q = select(Document).where(Document.workspace_id == ws.id)
-    if status:
-        q = q.where(Document.status == status)
-    if company:
-        q = q.where(Document.company.ilike(f"%{company}%"))
-    q = q.order_by(Document.created_at.desc())
-    return list(db.scalars(q).all())
+    return run_sync(_documents.list_for_workspace(
+        ctx, ctx.workspace_id,
+        status=status.value if status else None,
+        company_like=company,
+    ))
 
 
 @router.get("/workspaces/{workspace_id}/documents/{document_id}",
             response_model=DocumentOut)
 def get_document(
-    ws: Annotated[Workspace, Depends(workspace_dep)],
-    db: Annotated[Session, Depends(get_db)],
+    ctx: WorkspaceCtxDep,
     document_id: Annotated[str, FastPath()],
 ):
-    doc = db.get(Document, document_id)
-    if not doc or doc.workspace_id != ws.id:
+    doc = run_sync(_documents.get_by_id(ctx, document_id))
+    if not doc or doc["workspace_id"] != ctx.workspace_id:
         raise NotFoundError("document not found")
     return doc
 
@@ -149,39 +168,40 @@ def get_document(
 @router.patch("/workspaces/{workspace_id}/documents/{document_id}",
               response_model=DocumentOut)
 def update_document(
-    ws: Annotated[Workspace, Depends(workspace_dep)],
-    db: Annotated[Session, Depends(get_db)],
+    ctx: WorkspaceCtxDep,
     document_id: Annotated[str, FastPath()],
     payload: DocumentUpdate,
     user: CurrentUser,
 ):
     can_write(user)
-    doc = db.get(Document, document_id)
-    if not doc or doc.workspace_id != ws.id:
+    doc = run_sync(_documents.get_by_id(ctx, document_id))
+    if not doc or doc["workspace_id"] != ctx.workspace_id:
         raise NotFoundError("document not found")
-    for k, v in payload.model_dump(exclude_unset=True).items():
-        setattr(doc, k, v)
-    db.commit()
-    db.refresh(doc)
-    return doc
+    fields = payload.model_dump(exclude_unset=True, mode="json")
+    if fields:
+        run_sync(_documents.update_by_id(ctx, document_id, fields))
+    return run_sync(_documents.get_by_id(ctx, document_id))
 
 
 @router.delete("/workspaces/{workspace_id}/documents/{document_id}")
 def delete_document(
-    ws: Annotated[Workspace, Depends(workspace_dep)],
-    db: Annotated[Session, Depends(get_db)],
+    ctx: WorkspaceCtxDep,
     document_id: Annotated[str, FastPath()],
     user: CurrentUser,
 ):
     can_write(user)
-    doc = db.get(Document, document_id)
-    if not doc or doc.workspace_id != ws.id:
+    doc = run_sync(_documents.get_by_id(ctx, document_id))
+    if not doc or doc["workspace_id"] != ctx.workspace_id:
         raise NotFoundError("document not found")
-    # Remove from vector store + structured DB, then the document
+    # Unpublish in the reverse of the ingest order: vectors and chunks first so
+    # nothing searchable points at the document, then the document itself.
+    # The extracted figures stay, provenance cleared (what the SQL
+    # ON DELETE SET NULL did).
     try:
         get_vectordb().delete_by_document(document_id)
     except Exception:
         pass
-    db.delete(doc)
-    db.commit()
+    run_sync(_chunks.delete_for_document(ctx, document_id))
+    run_sync(_financials.detach_document(ctx, document_id))
+    run_sync(_documents.delete_by_id(ctx, document_id))
     return {"deleted": document_id}

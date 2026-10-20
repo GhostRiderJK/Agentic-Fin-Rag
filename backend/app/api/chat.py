@@ -25,7 +25,8 @@ from app.conversation import (
 )
 from app.core.security import CurrentUser
 from app.db.base import get_db
-from app.db.models import Conversation, FeedbackLog, Message, MessageRole, Workspace
+from app.db.models import Conversation, FeedbackLog, Message, MessageRole, Role, Workspace
+from app.db.mongodb.tenant_context import TenantContext
 from app.reasoning.orchestrator import AnswerRequest, Orchestrator
 
 router = APIRouter(tags=["chat"])
@@ -37,12 +38,18 @@ def chat(
     db: Annotated[Session, Depends(get_db)],
     user: CurrentUser,
 ):
+    if payload.include_evidence_trace and user.role != Role.admin:
+        from app.core.errors import ForbiddenError
+
+        raise ForbiddenError("evidence trace requires admin role")
     # Validate workspace access
     ws = db.get(Workspace, payload.workspace_id)
     if not ws or ws.tenant_id != user.tenant_id:
         from app.core.errors import NotFoundError
 
         raise NotFoundError("workspace not found")
+    ctx = TenantContext(tenant_id=user.tenant_id, user_id=user.id,
+                        workspace_id=ws.id)
 
     conv = ensure_conversation(
         db, conversation_id=payload.conversation_id,
@@ -53,16 +60,18 @@ def chat(
     append_message(db, conversation_id=conv.id, role=MessageRole.user,
                    content=payload.question)
 
-    orch = Orchestrator(db)
+    orch = Orchestrator(ctx)
     resp = orch.answer(AnswerRequest(
         question=payload.question, workspace_id=payload.workspace_id,
         conversation_id=conv.id, history=history, mode=payload.mode,
+        include_evidence_trace=payload.include_evidence_trace,
     ))
     msg = append_message(
         db, conversation_id=conv.id, role=MessageRole.assistant,
         content=resp.answer, citations=resp.citations,
         trace={"plan": resp.plan, "tool_results": resp.tool_results,
-               "verification": resp.verification},
+               "verification": resp.verification,
+               "generation": resp.generation},
     )
     db.commit()
 
@@ -71,6 +80,7 @@ def chat(
         citations=[CitationOut(**c) for c in resp.citations],
         plan=resp.plan, tool_results=resp.tool_results,
         verification=resp.verification, retrieval=resp.retrieval,
+        generation=resp.generation,
         latency_ms=resp.latency_ms, notes=resp.notes,
         message_id=msg.id, conversation_id=conv.id,
     )
@@ -83,11 +93,17 @@ def chat_stream(
     user: CurrentUser,
 ):
     """Token-streaming chat. Falls back to single-chunk if LLM doesn't stream."""
+    if payload.include_evidence_trace and user.role != Role.admin:
+        from app.core.errors import ForbiddenError
+
+        raise ForbiddenError("evidence trace requires admin role")
     ws = db.get(Workspace, payload.workspace_id)
     if not ws or ws.tenant_id != user.tenant_id:
         from app.core.errors import NotFoundError
 
         raise NotFoundError("workspace not found")
+    ctx = TenantContext(tenant_id=user.tenant_id, user_id=user.id,
+                        workspace_id=ws.id)
 
     conv = ensure_conversation(
         db, conversation_id=payload.conversation_id,
@@ -101,15 +117,17 @@ def chat_stream(
     # We compute the full response once (retrieval + verification), then
     # stream the final text for the UX. This keeps citations/verification
     # accurate while still giving a streaming feel for the LLM output.
-    orch = Orchestrator(db)
+    orch = Orchestrator(ctx)
     resp = orch.answer(AnswerRequest(
         question=payload.question, workspace_id=payload.workspace_id,
         conversation_id=conv.id, history=history, mode=payload.mode,
+        include_evidence_trace=payload.include_evidence_trace,
     ))
     append_message(
         db, conversation_id=conv.id, role=MessageRole.assistant,
         content=resp.answer, citations=resp.citations,
-        trace={"plan": resp.plan, "verification": resp.verification},
+        trace={"plan": resp.plan, "verification": resp.verification,
+               "generation": resp.generation},
     )
     db.commit()
 
@@ -122,6 +140,8 @@ def chat_stream(
             "citations": resp.citations,
             "plan": resp.plan,
             "verification": resp.verification,
+            "generation": resp.generation,
+            "retrieval": resp.retrieval,
             "conversation_id": conv.id,
             "latency_ms": resp.latency_ms,
         }

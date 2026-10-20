@@ -83,10 +83,23 @@ investment-research/
 │   ├── tests/
 │   └── pyproject.toml
 ├── frontend/             # Next.js 14 + React + TS
-├── infra/                # docker-compose (optional), env templates
+├── infra/                # docker-compose.yml — the default way to run, env templates
 ├── docs/
+├── start.bat / stop.bat  # bring the app profile up / stop web + API
 └── README.md
 ```
+
+### 4.1 Run modes
+
+- **Docker (default).** `start.bat`, or
+  `docker compose -f infra/docker-compose.yml --profile app up -d`.
+  Frontend `127.0.0.1:3000`, API `127.0.0.1:8010` (host port differs from the
+  container's 8000 on purpose), MongoDB `127.0.0.1:27019`, Qdrant `6333`.
+  Demo credentials come from `docker exec finrag-backend python -m app.cli seed`.
+- **Host (no Docker).** `python -m app.cli serve` + `npm run dev`. Separate
+  SQLite file and separate MongoDB from the containers — the two modes do not
+  share identities, documents, or vectors, so a key created in one is rejected
+  by the other.
 
 ## 5. Module Responsibilities
 

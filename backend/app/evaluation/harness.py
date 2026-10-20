@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
 from app.db.models import EvalItem, EvalRun
+from app.db.mongodb.tenant_context import TenantContext
 from app.reasoning.orchestrator import AnswerRequest, Orchestrator
 
 log = get_logger(__name__)
@@ -90,9 +91,11 @@ class EvalResult:
 
 
 class EvalRunner:
-    def __init__(self, db: Session, orchestrator: Orchestrator | None = None) -> None:
+    def __init__(self, db: Session, ctx: TenantContext,
+                 orchestrator: Orchestrator | None = None) -> None:
         self.db = db
-        self.orch = orchestrator or Orchestrator(db)
+        self.ctx = ctx
+        self.orch = orchestrator or Orchestrator(ctx)
 
     def run(self, suite: EvalSuite, *, persist: bool = True) -> EvalResult:
         item_results: list[EvalItemResult] = []
@@ -147,8 +150,8 @@ class EvalRunner:
         self.db.commit()
 
 
-def run_suite(db: Session, suite: EvalSuite) -> EvalResult:
-    return EvalRunner(db).run(suite)
+def run_suite(db: Session, ctx: TenantContext, suite: EvalSuite) -> EvalResult:
+    return EvalRunner(db, ctx).run(suite)
 
 
 # ---------------------------------------------------------------------------

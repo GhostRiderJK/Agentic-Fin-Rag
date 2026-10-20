@@ -28,6 +28,9 @@ export interface Document {
 
 export interface Citation {
   index: number; chunk_id: string; document_id: string;
+  source_filename?: string; printed_page?: number | null;
+  physical_page?: number | null;
+  page_number_type?: "printed" | "physical";
   company: string | null; year: number | null; quarter: string | null;
   doc_type: string | null; section: string | null; page: number;
   snippet: string;
@@ -39,6 +42,7 @@ export interface ChatResponse {
   plan: Record<string, unknown>;
   tool_results: Record<string, unknown>[];
   verification: Record<string, unknown>;
+  generation: { provider?: string; is_stub?: boolean };
   retrieval: Record<string, unknown>;
   latency_ms: number;
   notes: string[];
@@ -59,9 +63,29 @@ export interface Job {
   result: Record<string, unknown>;
 }
 
+export interface IngestResponse {
+  document_id: string;
+  n_parents: number;
+  n_children: number;
+  n_tables: number;
+  n_financials: number;
+  needs_ocr: boolean;
+  metadata: Record<string, unknown>;
+  chunks: Record<string, unknown>[];
+}
+
 export interface EvalRun {
   id: string; suite: string; n_items: number;
   metrics: Record<string, number>; created_at: string;
+}
+
+export interface EvalSuite {
+  id: string; packaged: boolean; n_items: number;
+}
+
+/** A queued eval. The run itself is delivered through the job it points at. */
+export interface EvalAccepted {
+  job_id: string; status: string; suite: string; workspace_id: string;
 }
 
 const API_BASE = "/api";
@@ -125,7 +149,7 @@ export const api = {
   uploadDocument: async (
     apiKey: string, wsId: string,
     file: File, fields: Record<string, string>,
-  ) => {
+  ): Promise<IngestResponse> => {
     const fd = new FormData();
     fd.append("file", file);
     for (const [k, v] of Object.entries(fields)) fd.append(k, v);
@@ -138,7 +162,7 @@ export const api = {
       const j = await res.json().catch(() => ({}));
       throw new Error(j.message || `${res.status}`);
     }
-    return res.json();
+    return res.json() as Promise<IngestResponse>;
   },
   deleteDocument: (apiKey: string, wsId: string, docId: string) =>
     request<{ deleted: string }>(
@@ -178,11 +202,15 @@ export const api = {
     request<Job[]>(`/jobs${wsId ? `?workspace_id=${wsId}` : ""}`, { apiKey }),
 
   // Eval
-  runEval: (apiKey: string, wsId: string) =>
-    request<EvalRun>("/admin/eval/run", {
+  listEvalSuites: (apiKey: string) =>
+    request<EvalSuite[]>("/admin/eval/suites", { apiKey }),
+  runEval: (apiKey: string, wsId: string, suiteId: string) =>
+    request<EvalAccepted>("/admin/eval/run", {
       method: "POST", apiKey,
-      body: JSON.stringify({ workspace_id: wsId }),
+      body: JSON.stringify({ workspace_id: wsId, suite: suiteId }),
     }),
+  getJob: (apiKey: string, jobId: string) =>
+    request<Job>(`/jobs/${jobId}`, { apiKey }),
   listEvalRuns: (apiKey: string) =>
     request<EvalRun[]>("/admin/eval/runs", { apiKey }),
 };

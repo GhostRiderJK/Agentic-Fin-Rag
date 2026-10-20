@@ -13,6 +13,8 @@ from app.core.config import get_settings
 from app.core.errors import install_exception_handlers
 from app.core.logging import configure_logging, get_logger, LoggingMiddleware
 from app.db.base import init_db
+from app.db.mongodb import client as mongo
+from app.db.mongodb import runtime
 
 
 @asynccontextmanager
@@ -25,7 +27,17 @@ async def lifespan(_: FastAPI):
              settings.app_env)
     init_db()
     log.info("database initialized")
+    # The Mongo IO loop owns the only client, so the ping goes through
+    # run_sync even though we are inside the (application) event loop here.
+    if not runtime.run_sync(mongo.ping()):
+        raise RuntimeError(
+            "MongoDB is unreachable. Start it (`docker compose up -d mongo`) "
+            f"or point MONGODB_URL at a live server; refusing to serve from a "
+            "data layer that cannot be read."
+        )
+    log.info("mongodb connected")
     yield
+    runtime.shutdown()
     log.info("shutdown complete")
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from mongo_support import app_db  # noqa: F401  (fixture used by name)
 
 
 def test_query_understanding_basic():
@@ -28,6 +29,32 @@ def test_query_understanding_metadata_filter():
     assert flt["company"] == "NVIDIA"
     assert flt["year"] == 2024
     assert flt["quarter"] == "Q3"
+
+
+def test_lexical_query_expands_financial_abbreviations():
+    from app.retrieval.hybrid import _lexical_query
+
+    assert "assets under management" in _lexical_query("PIF AuM in 2024")
+    assert "total shareholder return" in _lexical_query("annualized TSR")
+
+
+def test_hybrid_bm25_scores_never_penalize_common_query_terms():
+    from app.retrieval.hybrid import HybridRetriever, _query_term_coverage
+
+    retriever = object.__new__(HybridRetriever)
+    chunks = [
+        {"id": "a", "text": "PIF annual report 2023 assets under management"},
+        {"id": "b", "text": "PIF annual report 2023 assets under management"},
+        {"id": "c", "text": "PIF annual report 2023 assets under management"},
+        {"id": "d", "text": "unrelated investment narrative"},
+    ]
+    scores = retriever._bm25_scores("PIF AuM 2023", chunks)
+
+    assert all(score >= 0 for score in scores.values())
+    assert _query_term_coverage(
+        "What was PIF's AuM in 2023?",
+        "PIF Assets Under Management AuM 2023 SAR 2,871 billion",
+    ) == 1.0
 
 
 def test_query_rewrite_with_history():
@@ -83,6 +110,94 @@ def test_chunking_keeps_every_chunk_on_the_page_it_came_from():
     assert not any(p.tables_md for p in result.parents if p.page != 3)
 
 
+def test_pdf_printed_page_footer_is_distinct_from_physical_index():
+    from app.ingestion.parser import (
+        _printed_page_number,
+        _printed_page_number_from_page,
+    )
+
+    assert _printed_page_number(
+        "At a Glance\nCompanies established in 2024\n16\n10 11"
+    ) == 10
+    assert _printed_page_number(
+        "Performance Review\nAuM reached SAR 3,424 BN\n18 19"
+    ) == 18
+    assert _printed_page_number("Projects funded 91") is None
+
+    class Page:
+        width = 1190
+        height = 842
+        chars = [
+            {"text": "1", "x0": 51, "top": 801},
+            {"text": "1", "x0": 51, "top": 801},
+            {"text": "3", "x0": 55, "top": 801},
+            {"text": "3", "x0": 55, "top": 801},
+        ]
+
+        def extract_words(self):
+            raise AssertionError("character positions should be preferred")
+
+    assert _printed_page_number_from_page(Page(), 7) == 13
+
+
+def test_table_content_is_embeddable_alongside_page_text():
+    """Table labels and values must share searchable child text, not just the
+    parent context that is fetched after a different passage matched."""
+    from app.ingestion.chunking import chunk_document
+
+    table = "| Assets under Management | SAR 3,424 billion |"
+    chunks = chunk_document(
+        "PIF reported strong growth in 2024.",
+        pages=[(6, "PIF reported strong growth in 2024.\n\n" + table)],
+    )
+    searchable = " ".join(child.text for parent in chunks.parents
+                           for child in parent.children)
+    assert "Assets under Management" in searchable
+    assert "3,424" in searchable
+
+
+def test_child_chunk_overlap_keeps_a_metric_label_with_its_value():
+    from app.ingestion.chunking import _split_children
+
+    children = _split_children(
+        ("context " * 41) + "\nAssets Under Management\nSAR 3,424 billion"
+    )
+    assert any("Assets Under Management" in child and "3,424" in child
+               for child in children)
+
+
+def test_multi_year_retrieval_fans_out_to_each_requested_year():
+    from app.reasoning.orchestrator import _multi_year_retrieve
+    from app.retrieval.hybrid import RetrievalResult, RetrievedChunk
+    from app.retrieval.query_understanding import understand_query
+
+    class FakeRetriever:
+        def __init__(self):
+            self.years = []
+            self.questions = []
+
+        def retrieve(self, question, *, plan, rerank_top_k):
+            self.years.extend(plan.years)
+            self.questions.append(question)
+            year = plan.years[0]
+            chunk = RetrievedChunk(
+                chunk_id=f"chunk-{year}", parent_id=None,
+                document_id=f"doc-{year}", text=f"AuM {year}",
+                parent_text=f"AuM in {year}", tables_md="", company="PIF",
+                year=year, quarter="", doc_type="annual_report",
+                section="", page=10,
+            )
+            return RetrievalResult(question, plan, [chunk])
+
+    plan = understand_query("Compare assets under management in 2023 and 2024")
+    fake = FakeRetriever()
+    result = _multi_year_retrieve(fake, plan.question, plan)
+
+    assert fake.years == [2023, 2024]
+    assert ["2023" in q and "2024" not in q for q in fake.questions] == [True, False]
+    assert {chunk.year for chunk in result.chunks} == {2023, 2024}
+
+
 def test_table_extractor_extracts_financials():
     from app.ingestion.parser import TableExtract
     from app.ingestion.tables import extract_financials
@@ -128,11 +243,11 @@ def test_citation_verifier_supports_and_rejects():
     )]
     v = CitationVerifier()
     supported = v.verify(
-        "Apple revenue in 2025 was 120 billion dollars.", chunks)
+        "Apple revenue in 2025 was 120 billion dollars [1].", chunks)
     assert supported.outcome == VerificationOutcome.SUPPORTED
 
     rejected = v.verify(
-        "Apple revenue in 2025 was 999 trillion dollars and they went bankrupt.",
+        "Apple revenue in 2025 was 999 trillion dollars and they went bankrupt [1].",
         chunks,
     )
     assert rejected.outcome in (VerificationOutcome.PARTIAL,
@@ -156,7 +271,7 @@ def test_eval_metrics_numeric_accuracy():
 
 
 def test_stub_llm_deterministic():
-    from app.providers.llm import StubLLM, Message
+    from app.providers.llm import Message, StubLLM
 
     llm = StubLLM()
     msgs = [Message(role="user", content="What was ACME revenue in 2025?")]
@@ -166,8 +281,8 @@ def test_stub_llm_deterministic():
 
 
 def test_stub_embeddings_similarity():
+
     from app.providers.embeddings import StubEmbeddings
-    import math
 
     emb = StubEmbeddings(dim=128)
     [v1, v2, v3] = emb.embed([
@@ -177,39 +292,86 @@ def test_stub_embeddings_similarity():
     ])
 
     def cos(a, b):
-        return sum(x * y for x, y in zip(a, b))
+        return sum(x * y for x, y in zip(a, b, strict=True))
 
     assert cos(v1, v2) > cos(v1, v3)
 
 
-def test_financial_tools_with_seed():
-    """End-to-end check of the SQL tool-calling target against a seeded DB."""
-    from sqlalchemy import select
-    from app.db.base import db_scope, init_db
-    from app.db.models import (
-        StructuredFinancial, Tenant, User, Workspace,
-    )
+def test_stub_reranker_does_not_penalize_long_evidence_chunks():
+    from app.providers.reranker import StubReranker
+
+    docs = [
+        "PIF annual report " + ("general investment context " * 80),
+        "PIF reported AuM in 2023 was SAR 2,871 billion. "
+        + ("supporting context " * 35),
+    ]
+    ranked = StubReranker().rerank("PIF AuM 2023", docs)
+    assert ranked[0][0] == 1
+
+
+def test_financial_tools_with_seed(app_db):  # noqa: F811
+    """End-to-end check of the metric tool-calling route against a seeded DB."""
+    from decimal import Decimal
+
+    from app.db.mongodb.repositories import StructuredFinancialRepository
+    from app.db.mongodb.runtime import run_sync
+    from app.db.mongodb.tenant_context import TenantContext
     from app.reasoning.tools import get_financial_metric
 
-    init_db()
-    with db_scope() as db:
-        t = db.scalar(select(Tenant)) or Tenant(name="T")
-        if t.id is None:
-            db.add(t)
-            db.flush()
-        ws = db.scalar(select(Workspace)) or Workspace(tenant_id=t.id, name="W")
-        if ws.id is None:
-            db.add(ws)
-            db.flush()
-        # clean + insert
-        db.query(StructuredFinancial).delete()  # type: ignore[attr-defined]
-        db.add(StructuredFinancial(
-            workspace_id=ws.id, company="ACME", ticker="ACME",
-            metric="eps", fiscal_year=2025, quarter="",
-            value=5.20, unit="USD", currency="USD", page=4, confidence=1.0,
-        ))
-        db.flush()
-        out = get_financial_metric(db, workspace_id=ws.id, company="ACME",
-                                   metric="eps", fiscal_year=2025)
-        assert out["results"]
-        assert out["results"][0]["value"] == 5.20
+    ctx = TenantContext(tenant_id="tenant-seed", workspace_id="ws-seed")
+    run_sync(StructuredFinancialRepository().insert_one(
+        ctx,
+        {
+            "workspace_id": "ws-seed", "company": "ACME", "ticker": "ACME",
+            "metric": "eps", "fiscal_year": 2025, "quarter": "",
+            "value": Decimal("5.20"), "unit": "USD", "currency": "USD",
+            "page": 4, "confidence": Decimal("1"),
+        },
+    ))
+
+    out = get_financial_metric(ctx, company="ACME", metric="eps",
+                               fiscal_year=2025)
+    assert out["results"]
+    # Money leaves the tool as a string: a float would round 5.20 through
+    # binary arithmetic on the way to the LLM.
+    assert out["results"][0]["value"] == "5.20"
+
+    # Another workspace of the same tenant sees nothing.
+    other = get_financial_metric(
+        ctx.with_workspace("ws-other"), company="ACME", metric="eps",
+        fiscal_year=2025)
+    assert other["results"] == []
+
+    # Nor does another tenant, even naming the same workspace.
+    foreign = get_financial_metric(
+        TenantContext(tenant_id="tenant-other", workspace_id="ws-seed"),
+        company="ACME", metric="eps", fiscal_year=2025)
+    assert foreign["results"] == []
+
+
+def test_eval_suite_names_resolve_inside_the_suites_dir(tmp_path, monkeypatch):
+    from app.core.config import get_settings
+    from app.core.errors import NotFoundError, ValidationError
+    from app.evaluation import suites
+
+    d = tmp_path / "eval_suites"
+    d.mkdir()
+    (d / "pif_gold.jsonl").write_text(
+        '{"question": "q1", "expected": "a1"}\n\n{"question": "q2"}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(get_settings(), "eval_suites_dir", str(d), raising=False)
+
+    assert [s["id"] for s in suites.list_suites()] == ["packaged", "pif_gold"]
+    assert suites.list_suites()[1]["n_items"] == 2
+
+    path, name = suites.resolve("pif_gold")
+    assert name == "pif_gold" and path.read_text(encoding="utf-8").startswith("{")
+
+    # The packaged suite is what an empty name means.
+    assert suites.resolve("")[1] == "packaged"
+
+    with pytest.raises(ValidationError):
+        suites.resolve("../etc/passwd")
+    with pytest.raises(NotFoundError):
+        suites.resolve("not_a_suite")

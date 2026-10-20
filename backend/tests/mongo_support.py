@@ -196,3 +196,67 @@ def ctx_b() -> TenantContext:
 @pytest.fixture()
 def ctx_root() -> TenantContext:
     return TenantContext(tenant_id="platform", user_id="root-1", is_super_admin=True)
+
+
+@pytest.fixture(params=["mock", pytest.param("real", marks=pytest.mark.integration)])
+def app_db(request):
+    """Throwaway database for tests that drive the HTTP app or sync services.
+
+    Those go through ``app.db.mongodb.runtime``, whose private IO loop owns the
+    only client the application uses, so the real-server client is created
+    there too. A client created on the test's own loop raises "attached to a
+    different loop" the first time a route touches it.
+
+    The mock param works because mongomock-motor has no loop affinity; the real
+    one needs the server, and ``REQUIRE_MONGO`` makes its absence a failure
+    rather than a skip.
+    """
+    from app.db.mongodb import runtime
+    from app.db.mongodb.client import set_test_database
+
+    name = f"finrag_test_{uuid.uuid4().hex}"
+
+    if request.param == "mock":
+        mongomock_motor = pytest.importorskip(
+            "mongomock_motor", reason="mongomock-motor not installed"
+        )
+        database = mongomock_motor.AsyncMongoMockClient().get_database(name)
+        set_test_database(database)
+        try:
+            yield database
+        finally:
+            set_test_database(None)
+        return
+
+    pymongo = pytest.importorskip("pymongo")
+    motor = pytest.importorskip("motor.motor_asyncio")
+    url = os.environ.get("MONGODB_TEST_URL", DEFAULT_URL)
+    enforce_reachable(url, _unreachable_reason(pymongo, url))
+    admin = pymongo.MongoClient(url, serverSelectionTimeoutMS=3000)
+
+    async def _connect():
+        # Created on the IO loop so every application call shares it.
+        return motor.AsyncIOMotorClient(
+            url, serverSelectionTimeoutMS=3000, uuidRepresentation="standard"
+        )
+
+    client = runtime.run_sync(_connect())
+    database = client[name]
+    set_test_database(database)
+    hello = admin.admin.command("hello")
+    print(
+        f"\n[app-db] url={url} database={name} "
+        f"version={admin.server_info().get('version')} "
+        f"setName={hello.get('setName')}"
+    )
+
+    try:
+        yield database
+    finally:
+        set_test_database(None)
+        # Closing the pool is safe from this thread once no request is in
+        # flight; run_sync is deliberately not used because the app shutdown
+        # path may already have stopped the IO loop.
+        client.close()
+        admin.drop_database(name)  # only the throwaway database
+        admin.close()

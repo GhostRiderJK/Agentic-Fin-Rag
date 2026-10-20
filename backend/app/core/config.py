@@ -39,6 +39,7 @@ _ENV_FILES = (
 
 _DEFAULT_JWT_SECRET = "change-me-in-production"
 _MIN_PROD_JWT_SECRET_LEN = 32
+_ALLOWED_PAGE_QUOTAS = frozenset({0, 1, 2})
 
 def _provider_allowed(model: str, allowed: List[str]) -> bool:
     """True when ``model`` is ``<provider>/...`` and the provider is allowed."""
@@ -86,6 +87,8 @@ class Settings(BaseSettings):
     # Storage
     storage_path: str = "./data/storage"
     upload_max_size_mb: int = 100
+    # The only directory /admin/eval is allowed to read gold sets from.
+    eval_suites_dir: str = "./data/eval_suites"
 
     # LLM provider. The misspelling "omnirroute" is mapped to "omniroute"
     # (with a warning) by _normalise_llm_provider before validation.
@@ -174,6 +177,15 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 10
     hybrid_dense_weight: float = 0.6
     hybrid_bm25_weight: float = 0.4
+    retrieval_page_quota: int = Field(
+        default=0,
+        description=(
+            "Maximum chunks kept per (document, physical page) group when "
+            "selecting the returned set. 0 disables the quota and reproduces "
+            "the original ranking exactly; 1 keeps the single best chunk per "
+            "page; 2 is the conservative experimental mode."
+        ),
+    )
 
     # Auth
     jwt_secret: str = _DEFAULT_JWT_SECRET
@@ -207,6 +219,16 @@ class Settings(BaseSettings):
                 "use 'omniroute'."
             )
             return "omniroute"
+        return v
+
+    @field_validator("retrieval_page_quota")
+    @classmethod
+    def _validate_page_quota(cls, v: int) -> int:
+        if v not in _ALLOWED_PAGE_QUOTAS:
+            raise ValueError(
+                "RETRIEVAL_PAGE_QUOTA must be 0 (disabled), 1 (one chunk per "
+                f"document page) or 2; got {v}"
+            )
         return v
 
     @model_validator(mode="after")
@@ -298,7 +320,7 @@ class Settings(BaseSettings):
 
     def ensure_dirs(self) -> None:
         db_dir = self._database_dir()
-        for p in (self.storage_path, self.qdrant_path, db_dir):
+        for p in (self.storage_path, self.qdrant_path, self.eval_suites_dir, db_dir):
             if p:
                 Path(p).mkdir(parents=True, exist_ok=True)
 

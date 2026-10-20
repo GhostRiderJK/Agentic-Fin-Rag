@@ -1,7 +1,9 @@
 # FinRAG 2.0 — Implementation Status
 
-Last verified: 2026-10-17. Every claim below was checked against the running
-code and services on this machine, not against a plan.
+Last verified: 2026-10-19 (late round). Every claim below was checked against the
+running code and services on this machine, not against a plan. Sections marked
+*superseded* record what was true earlier and what replaced it, because the
+measurements behind them are still cited elsewhere.
 
 ## Verification artefacts
 
@@ -13,14 +15,30 @@ code and services on this machine, not against a plan.
 | `docs/gateway-stream-recheck.json` | Streaming recheck after the `reasoning_content` fix |
 | `backend/scripts/verify_gateway.py` | Produces the above. Nothing mocked. |
 | `backend/scripts/spike_atlas_search.py` | Atlas Search / Vector Search feasibility spike, 12 checks |
+| `reports/pif_page_quota_1792426483019287700.json` | Page-quota sweep through the production `retrieve()` path |
+| `reports/pif_page_quota_broad_1792427509200136400.json` | Same, plus k=1..10 cutoff curves and the fan-out shape probe |
+| `reports/pif_stage_final.json` | Offline stage-attribution ablation (11 configurations) — **see the staleness warning in the retrieval section before quoting it** |
+| `reports/pif_prefusion_misses_1792427755170889700.json` | Candidate-generation cause for each gold question that misses k=10 |
+| `reports/pif_doubled_text_1792430653471494700.json`, `reports/pif_doubled_text_evidence_1792430653471494700.md` | Doubled-character ingestion defect: provenance, counts, limitations |
+| `docs/page-quota-serving-ab-protocol.md` | A/B protocol for the serving API — **written, not executed** |
+| `backend/scripts/exp_pif_stages.py`, `exp_page_quota_broad.py`, `diag_pif_prefusion_misses.py`, `diag_pif_doubled_text.py` | Produce the four reports above; all re-runnable |
 
 ## Test suite
 
-> Snapshot of the pre-round baseline. Current count, with `mongo-test` running
-> and `REQUIRE_MONGO=1`: **789 passed, 7 xfailed, 0 skipped.** The xfails are
-> the route-level holes listed under *(e)*, each pinned to the item that closes
-> it. See *Round progress* below.
+> Current baseline, re-run 2026-10-19 with `finrag-mongo-test` up:
+> **1017 tests collected → 1006 passed, 11 xfailed, 0 skipped** in 57 s
+> (`OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 .venv/Scripts/python.exe -m pytest -q`
+> from `backend/`, no `--ignore`, no `-k`, no `--deselect`).
+> The 11 xfails are 6 distinct route holes, mostly mirrored across the `mock`
+> and `real` Mongo parameterisations, each pinned to the item that closes it:
+> message feedback, `GET /admin/eval/runs`, `POST /auth/tenants`, anonymous
+> tenant claim, and two API-key-echo tests. See *(e)* below.
 
+The offline slice used while iterating (integration tests deselected, so **not**
+a reportable number) is `685 passed, 326 deselected, 6 xfailed in 13.24s` —
+`reports/offline_suite_after_eval_instrumentation.txt`.
+
+Historical first-round baseline, kept for context only:
 `305 passed, 0 skipped` from `backend/` with `.venv/Scripts/python.exe -m pytest`.
 
 The MongoDB suite is **parameterised `mock` + `real`**. The `real` variants
@@ -37,13 +55,19 @@ docker run -d --name finrag-atlas -p 27018:27017 -e DEV_DISABLE_AUTH=1 mongodb/m
 These corrections matter before any further planning:
 
 - **`FINRAG_GAP_ANALYSIS.md` does not exist** in the repo root.
-- **Not a git repository** — no `.git`, so "small commits" and "commit hash
-  beside every benchmark number" are currently impossible.
+- ~~**Not a git repository**~~ — **resolved.** `.git` exists, the branch is
+  `master`, and work is committed per change (`git log` shows the bcrypt fix,
+  the Mongo event-loop bridge, the retrieval query layer, the omniroute
+  provider and the page-provenance fix as separate commits). Commit hashes can
+  now sit beside benchmark numbers, as the brief requires.
 - A prior session already built much of Step 1 and part of Step 2 (see
   `memory/mongodb-repository-layer.md`).
-- **`backend/pyproject.toml` is not installable**: `readme = "../README.md"`
-  points outside the package, so `pip install -e backend[dev]` fails.
-  Dependencies must currently be installed by hand.
+- **`backend/pyproject.toml`** — the `readme = "../README.md"` field that
+  pointed outside the package and broke `pip install -e backend[dev]` is
+  **gone**; the file now declares `sqlalchemy`/`alembic` as the legacy store
+  with a comment naming this document as the migration record. Editable
+  install has not been re-run since the field was removed, so "installable" is
+  still an unverified claim rather than a closed one.
 
 ## Step 1 — Foundations: DONE
 
@@ -52,34 +76,66 @@ request/trace IDs (`app/core/tracing/trace_context.py`), error categories
 (`app/core/errors.py`), config validation (`app/core/config.py`).
 
 Note: `config.py` uses the aliases `OMNIROUTE_BASE_URL` / `OMNIROUTE_API_KEY`,
-not the `LLM_BASE_URL` / `LLM_API_KEY` named in the brief. Model roles exist
+not the `LLM_BASE_URL` / `LLM_API_KEY` named in the brief (both names work —
+`AliasChoices` maps them, and the brief's names win). Model roles exist
 (`chat_model`, `reasoning_model`, `vision_model`, `embedding_model`,
 `rerank_model`, `fallback_chain`) but the **defaults hard-code model IDs**
-(`nemotron-3-super-120b-a12b`, `nemotron-3-ultra-550b-a55b`) — the brief
-forbids this. `nemotron-3-ultra-550b-a55b` is additionally *dead* on this
-gateway.
+— the brief forbids this. Against `docs/gateway-liveness.json` (74 probed, **13
+that answer chat**), the pinned `chat_model`/`reasoning_model`
+(`nemotron-3-super-120b-a12b`) and the first three `FALLBACK_CHAIN` entries are
+all live; the dead `nemotron-3-ultra-550b-a55b` (upstream 404) is no longer a
+default. One real gap remains: the **fourth** fallback entry is
+`ollama/llama3.1`, and `ollama list` shows only `nomic-embed-text` and
+`llama3.2:3b`, so the tail of the chain cannot actually be used on this machine.
 
-## Step 2 — MongoDB layer: PARTIAL, NOT INTEGRATED
+## Step 2 — MongoDB layer: PARTIAL, **now with real app consumers**
 
 Built and tested: `app/db/mongodb/` (client, collections, tenant_context,
 base_repository with enforced `tenant_id` injection, repositories, decimal
-codec, bootstrap, pipeline guard).
+codec, bootstrap, pipeline guard, and — since commit 3dd6484 — `runtime.py`,
+one background event loop that lets synchronous FastAPI handlers call the async
+repository layer through `run_sync`).
 
-Gaps against the brief:
+Gap 1 is **closed** (it read "Zero app consumers"). Production code now goes
+through Mongo:
 
-1. **Zero app consumers.** Every router still imports SQLAlchemy
-   (`api/auth.py`, `admin.py`, `chat.py`, `documents.py`, `deps.py`,
-   `reports_jobs.py`); retrieval uses SQLAlchemy too. No production code
-   constructs a Mongo repository or calls `ensure_collections`.
-2. **Isolation coverage is incomplete.** 15 repository classes exist;
-   isolation tests cover 6. Untested: `Tenant`, `Conversation`, `Job`,
-   `EvalRun`/`EvalItem`, `AuditLog`, `Feedback`. **No HTTP route-level
-   isolation tests exist at all**, and **Qdrant payload tenant scoping is
-   untested** — the brief requires both.
-3. **`Decimal128` is not enabled where money lives.** `decimal_codec` is wired
-   into `base_repository`, but activation is per-class `decimal_fields`, which
-   defaults to empty and **is declared by no production repository**. Money is
-   still float at rest.
+| Path | Store today |
+|---|---|
+| `api/documents.py` — document list/get/patch/delete, chunk reads, structured-financial reads | **Mongo** (`DocumentRepository`, `ChunkRepository`, `StructuredFinancialRepository`) |
+| `ingestion/pipeline.py`, `ingestion/reindex.py` | **Mongo** |
+| `retrieval/hybrid.py` — the candidate corpus and parent lookup | **Mongo** |
+| `api/chat.py`, `api/deps.py` | construct a `TenantContext` for the paths above |
+| tenants, users, workspaces, conversations, messages, jobs, reports, eval runs | **still SQLAlchemy** (`app/db/base.get_db` in `auth.py`, `admin.py`, `chat.py`, `documents.py`, `reports_jobs.py`, `deps.py`) |
+
+So the system is **dual-store**: document evidence in MongoDB, identity and
+conversation state in SQLite. That is a real state, not a bug, but it means the
+tenant-scoping guarantees of `BaseRepository._scoped` do **not** yet apply to
+the routes where the leaks were found.
+
+Live confirmation of exactly how far the migration got (`finrag` on 27019, read
+2026-10-19): **3 collections exist — `documents` (5), `chunks` (2136),
+`structured_financials` (0)** — not the 13 the layer defines. Ten of the
+collections have never been written by the running app, which is the same fact as
+the table above stated from the other side. And `structured_financials: 0` is
+still true with the Mongo writer in place, so the zero is an extraction/persist
+problem, not a legacy-SQL artifact.
+
+Remaining gaps against the brief:
+
+1. ~~Zero app consumers~~ — closed, table above.
+2. **Isolation coverage is complete at the repository layer** (item (c) — the
+   416-case matrix over all 12 tenant-owned repositories, mutation-tested), and
+   route-level coverage exists (item (e)). What is still open is the **6 unmet
+   routes** pinned as xfail, all of them on the un-migrated SQL side.
+   **Qdrant payload tenant scoping is still untested** — chunk payloads carry no
+   `tenant_id`; the workspace filter is the only boundary.
+3. **`Decimal128` does govern the money path that has moved.** Ingestion
+   persists extracted table financials through `StructuredFinancialRepository`
+   (`pipeline.py:44`, `_persist_financials` at `:209`), so those rows go through
+   the codec. What has *not* moved is the job row: `app/jobs/queue.py` still
+   creates SQLAlchemy `Job` objects (`:42`, `:62`, `:84`), so
+   `JobRepository.decimal_fields = {"progress"}` currently protects a collection
+   nothing writes to.
 4. ~~Docker Compose has no `mongo` service~~ — resolved in (a) below.
 
 ## Round progress (Step 2 only)
@@ -243,11 +299,13 @@ mongo suites (isolation + matrix + hardening + decimal)  ->  564 passed
 whole backend suite, REQUIRE_MONGO=1, mongo-test up      ->  756 passed, 0 skipped
 ```
 
-Not yet integrated: no route writes through these two repositories today (the
-SQL-era writers in `app/ingestion/pipeline.py`, `app/seed/seed_financials.py`
-and `app/jobs/queue.py` still go through SQLAlchemy), so the declarations
-cannot break a live path — they take effect for the Mongo readers that arrive
-with items (e) and (f).
+Write coverage at the time of *(d)*: no route wrote through these two
+repositories yet, so the declarations could not break a live path. That has
+since changed for money — `app/ingestion/pipeline.py` and
+`app/seed/seed_financials.py` now persist extracted financials through
+`StructuredFinancialRepository`, which is why the seeding payloads in
+`tests/test_api_isolation.py` and the matrix were switched to `Decimal` first.
+`JobRepository` is still read-only in practice; jobs remain SQL.
 
 ### (e) Route-level isolation tests — DONE, 8 holes found and pinned
 
@@ -277,8 +335,7 @@ red the moment it is fixed):**
 | Route | Leak | Closes at |
 |---|---|---|
 | `POST /messages/{id}/feedback` | `app/api/chat.py:180` loads the message by id with no workspace or tenant check; tenant A rates tenant B's answer and the row changes (observed 200) | (f) chat migration |
-| `GET /admin/eval/runs` | `app/api/admin.py:57` has no tenant filter — and `eval_runs` has **no tenant column** in the SQL schema, so it cannot be filtered there at all | (f) |
-| `POST /admin/eval/run` | `app/api/admin.py:49` reports the newest `eval_runs` row globally; a future-dated foreign row is returned verbatim to tenant A | (f) |
+| `GET /admin/eval/runs` | `app/api/admin.py:65` has no tenant filter — and `eval_runs` has **no tenant column** in the SQL schema, so it cannot be filtered there at all | (f) |
 | `POST /auth/tenants` | no authentication at all (`app/api/auth.py:36`): anyone can create tenants | (h) |
 | `POST /auth/users` | trusts the caller-supplied `tenant_id` whenever that tenant has no users yet (`app/api/auth.py:58`), so an anonymous request can make itself admin of any unclaimed tenant | (h) |
 | `GET /auth/me`, `UserOut` | the API key is stored in plaintext and handed back by every user response | (h) |
@@ -287,7 +344,8 @@ red the moment it is fixed):**
 Two further observations that are not route leaks but are recorded for (f):
 `users.email` is globally unique in SQL while the Mongo index plan makes it
 unique *per tenant*, so the login lookup must be re-scoped during migration; and
-`test_smoke`'s "eval run" step in its docstring is never actually exercised.
+`test_smoke`'s "eval run" step in its docstring is never actually exercised
+(superseded — the eval run is now exercised there, see the eval-job section).
 
 ```
 tests/test_api_isolation.py                          ->  22 passed, 8 xfailed
@@ -391,23 +449,253 @@ narrative, but every reported number must come from document text or tables,
 never from a chart read. Note also the 10x prompt-token difference for the same
 image.
 
-## Steps 3–12: NOT STARTED
+## Eval runs are queued jobs, and suites are named — DONE, verified 2026-10-19
+
+Two defects found while browser-verifying the UI against the real Kaggle corpus
+(both measured, not inferred):
+
+1. `POST /admin/eval/run` answered the request only after running the whole
+   suite — 431.8 s of LLM calls. The Next.js `/api` proxy gives up at ~30 s, so
+   the dashboard showed `socket hang up` / HTTP 500 while the run went on to
+   finish server-side and record itself. Every chat longer than half a minute
+   fails the same way; eval made it impossible to miss.
+2. `api.runEval` sent no suite, so the button always ran the seeded ACME demo
+   set — there was no way to evaluate a real corpus from the UI.
+
+**Fix.** The route queues work and returns immediately; the UI polls.
+
+| Change | Where |
+|---|---|
+| `enqueue_eval()` + `kind == "eval"` worker branch (`_do_eval`) | `app/jobs/queue.py` |
+| `POST /admin/eval/run` → `202 {job_id, status, suite, workspace_id}` | `app/api/admin.py` |
+| `GET /admin/eval/suites` — suites listed by name | `app/api/admin.py` |
+| Suite allowlist: names resolve inside `EVAL_SUITES_DIR` only | `app/evaluation/suites.py`, `app/core/config.py` |
+| Suite dropdown, 2 s job poll, live metrics from the job, suite column in history | `frontend/src/app/eval/page.tsx`, `frontend/src/lib/api.ts` |
+
+A suite is now addressed by **name, never by path**. `EvalSuite.from_jsonl`
+reads whatever path it is handed, so the old `suite_path` field let an
+authenticated caller have the server open any file on disk; `resolve()` accepts
+`[A-Za-z0-9][A-Za-z0-9._-]{0,99}` and appends `.jsonl` inside
+`./data/eval_suites` (`/app/data/eval_suites` in the container, created at
+startup by `ensure_dirs()`). `""`/`"default"`/`"packaged"` mean the seeded set.
+
+**Side effect, not planned but real:** the route used to report the newest
+`eval_runs` row with no tenant filter, which was on the leak list — tenant A
+could be handed tenant B's run id. It returned no run row at all now, so that
+xfail became a passing test (`test_eval_run_is_queued_and_names_no_run_row`).
+`GET /admin/eval/runs` still has no tenant filter and stays xfailed for (f).
+
+**Tests.** `tests/test_smoke.py` now exercises the docstring's "eval run" claim:
+suites listed, run queued, job polled to `succeeded`, `n_items == 7`, metrics
+present, run in history — against both `mock` and `real` Mongo. Its user is
+created with `role: "admin"` because the eval routes are admin-only and the user
+route honours the requested role. `tests/test_units.py` pins suite discovery and
+rejection. `COVERAGE` gained the `GET /admin/eval/suites` row.
+
+```
+tests/test_api_isolation.py                ->  53 passed, 11 xfailed
+tests/test_smoke.py                        ->  3 passed
+whole backend suite, at that round          ->  834 passed, 11 xfailed, 0 failed
+```
+
+(11 xfailed already — the same 6 route holes as today; the suite total has since
+gone 834 → 1006 as the retrieval, page-provenance and gold-attribution tests
+landed. See *Test suite* at the top for the current number.)
+
+**Live verification** (containers rebuilt, `pif_gold_qa.jsonl` + a 2-item
+`pif_gold_short.jsonl` copied into `/app/data/eval_suites`, real OmniRoute LLM):
+
+- `POST /api/admin/eval/run` through the Next proxy → **HTTP 202 in 0.035 s**;
+  `GET /api/jobs/{id}` polled every 15 s for ~215 s, every response 200, then
+  `succeeded` with the metrics in `job.result`. The run outlived the old 30 s
+  cutoff by 7x without a single failed request.
+- `/eval` in the browser: dropdown listed
+  `packaged — 7 items (seeded) / pif_gold_qa — 10 items / pif_gold_short — 2 items`,
+  the button read `Running…` while 18+ polls went out all 200, no error banner,
+  and history showed a `Suite` column with the new `pif_gold_short` run.
+
+Still open, unchanged by this work: naive-UTC timestamps render ~5.5 h off,
+`structured_financials` is 0 despite 18 tables parsed, and the chat page's
+suggested questions and report form defaults are hardcoded to ACME.
+
+**Long chats — resolved 2026-10-19.** The 30 s abort was the Next.js `/api`
+proxy's default; `frontend/next.config.js:11` now sets
+`experimental.proxyTimeout: 900_000`, which is what let the 215 s eval poll
+above finish. Chats are still **in-line** requests — `POST /chat/stream`
+exists (`app/api/chat.py:89`) but `frontend/src/lib/api.ts` never calls it and
+chat is not a queued job — so the *architecture* complaint stands: a restart
+mid-chat loses the generation. They no longer die at half a minute.
+
+## Page provenance: every chunk claimed page 1 — **fixed**, commit c6cae69, verified 2026-10-19
+
+`ingestion/chunking.py:_split_sections` took the whole cleaned document as one
+string and hard-coded `page=1`, discarding the page numbers the parser had
+already resolved. On a real 80-page report every parent and child chunk claimed
+the cover, so citations pointed at pages that did not contain them and no
+page-level retrieval metric could be computed honestly.
+
+Section detection now walks page by page: a header stays current across a page
+break, but the body it emits is page-bounded, so a section spanning pages 12–14
+becomes three chunks on those three pages. Pinned by the added cases in
+`tests/test_units.py`.
+
+Evidence the live store reflects the fix rather than the old hard-code: the PIF
+runs in the next section report per-chunk `physical_page` values spread across the
+document (53, 59, 64 …) with a mean of 3.6 unique pages over 8 returned chunks at
+quota 0. A pre-fix store would report 1.
+
+**This is what makes every page-diversity number below meaningful**, and it is
+also why the doubled-character remediation is so expensive: fixing it the obvious
+way means re-deriving chunk text and re-vectorising, which invalidates the page
+inventory measured here.
+
+## Retrieval page diversity: measured, implemented, **disabled by default** — verified 2026-10-19
+
+The one strict win found in this system is not a model change but a **selection
+rule**: after reranking, group the returned candidates by
+`(document_id, physical_page)` and keep at most `RETRIEVAL_PAGE_QUOTA` chunks per
+group (`_page_diversity_select`, `retrieval/hybrid.py:274`, applied at
+`:497-498` in place of the `out[:rerank_top_k]` truncation). Default **0 = off**;
+`.env` does not set the key, only `.env.example:98` documents it, so **the live
+environment is unchanged** and turning it on needs a separate decision.
+
+### Production-path numbers, not a sandbox
+
+`reports/pif_page_quota_1792426483019287700.json` calls the real
+`HybridRetriever.retrieve()` against the live stores
+(`chunks_nomic768_test`, Mongo 27019, Ollama embeddings, stub reranker), 10 gold
+PIF questions, `RETRIEVAL_TOP_K=10`, `RERANKER_TOP_K=10` applied by a private
+`Settings.model_copy` — never by editing `.env`. `generation_calls: 0`,
+`writes_to_datastore: 0`, `scoping_ok: true` for every arm.
+
+| Quota | source+page recall @5 | @10 | mean unique pages @10 | expected page in the final 8 | in returned 8 |
+|---|---|---|---|---|---|
+| 0 (today) | 3/10 | 5/10 | 3.6 | 4/10 | 4/10 |
+| **1** | **6/10** | **7/10** | **9.2** | **7/10** | **7/10** |
+| 2 | 5/10 | 7/10 | 7.1 | 6/10 | 6/10 |
+
+Quota 2 is dominated by quota 1 at six (question, cutoff) pairs, so **1 is the
+recommended value**. Source-only recall is 10/10 at every cutoff in every arm —
+the system always finds the right *document*; it was burying the right *page*.
+These match the offline ablation's `baseline` and `post_div_page1` rows, which is
+what makes the ablation trustworthy rather than decorative.
+
+The workspace under test holds exactly 2 documents (`2024-en_2024-en.pdf`,
+`2023-en_2023-en.pdf`); the broad report also records
+`documents_outside_workspace: 3` — three more documents in the same MongoDB that
+belong to *other* workspaces. Every arm is therefore checked to have returned
+nothing outside the probe workspace (`scoping_ok: true`), which is the only
+tenant boundary that exists on the retrieval path today.
+
+### Honest limits on that result
+
+- **n = 10.** 3 questions gained, 0 lost gives an exact McNemar (sign) two-sided
+  p ≈ 0.25 at k=5 and ≈ 0.5 at k=10. Deterministic and reproducible, **not**
+  statistically proven.
+- **7/10 is the ceiling, as a count and not a fixed set.** Widening dense
+  recovers pif-002 and loses pif-009 — net zero. Only **pif-007 and pif-010**
+  (page 6) are in no variant's k=10 hit set; pif-002 is cutoff-limited, not
+  absent (its page-64 rows sit at fused ranks 54/65/70/74/76/80 and the best
+  reaches rank 19 on a 120-hit probe, i.e. inside the pool).
+- **The gain partly compensates for the stub reranker.** With reranking switched
+  off entirely (`rerank_passthrough`) mean unique pages @10 is already **7.5**
+  and the quota on top of that reaches only 5/10 @10 (vs 7 for the stub). The
+  stub concentrates pages; the quota undoes that concentration. A real
+  cross-encoder could shrink the benefit — and no cross-encoder is installable
+  here, so that has to stay a caveat rather than be measured.
+- The un-golded fan-out paths change shape too: `_comparison_retrieve` /
+  `_multi_year_retrieve` still return 8 chunks with both years represented, but
+  unique pages go 5→7 and 7→8 (`fanout_probe`, explicitly *not* scored against
+  gold answers).
+- The saved reports were run against **gold v1** (`pif_gold_qa.jsonl`, sha256
+  `00f240c9…154512ce`). v2 (`pif_gold_qa_v2.jsonl`, stable ids + explicit
+  attribution) now exists and every consumer loads it through
+  `pif_chat_check.load_gold()`; v2 attributes all ten questions to `2024-en.pdf`,
+  dropping v1's extra `2023-en.pdf` for pif-008 — no metric changes, because that
+  hit already came from `2024-en`.
+- ⚠️ **`reports/pif_stage_final.json` (21:22) predates the `StageProbe` stage
+  alias fix** (`inventory` / `corpus` / `fused_pool`, each with its own
+  `stage_sizes`) and the `exp_pif_stages.py` edit at 22:31. Its *selection*
+  metrics agree with the production run above, but any **per-question stage
+  rank** taken from it must be re-generated before it is quoted in a submitted
+  document.
+
+### The doubled-character defect found while chasing pif-002
+
+108 of 1,066 stored PIF chunk rows (**10.1%**) across **61 of 157 pages**
+(`2023-en` 78 chunks / 41 pages, `2024-en` 30 / 20) hold text with every
+character repeated — `about` → `AAbboouutt`. Evidence and method:
+`reports/pif_doubled_text_1792430653471494700.json`,
+`reports/pif_doubled_text_evidence_1792430653471494700.md`,
+`backend/scripts/diag_pif_doubled_text.py`.
+
+The decisive measurement is the cross-tabulation: re-extracting all 157 pages
+fresh reproduces the defect on **exactly the same 61 pages**, and **0** pages are
+"stored corrupted but PDF clean". The only cell that could have implicated our
+parser or chunker is empty. OCR never ran on these files, and the child overlap
+at `chunking.py:214-222` is word-boundary aligned so it cannot produce
+intra-word doubling. So the defect is in the PDF's own glyph layer, and the
+corpus shipped that way. pif-002's corrupted page-64 chunk is a contributing
+factor in its miss, **not** its established cause — the two other
+answer-carrying children on that page store clean text and still miss the pool.
+pif-007/pif-010 have **zero** corrupted chunks on their expected page; their
+cause is candidate generation (empty `section`, no dense hit inside `top_k*2`).
+
+**Remediation is deliberately not applied.** `page.dedupe_chars()` /
+position-dedup in `parser.py:100-102` takes every sampled corrupted page to 0
+expanded tokens, but it requires a full PIF **reindex** (Mongo text + Qdrant
+vectors), which invalidates **every retrieval number in this document**. Reindex
+and the quota decision must not move together.
+
+### The serving API cannot express the measured configuration
+
+- `.env` sets `RERANKER_TOP_K=5`, which truncates the returned set to 5 chunks
+  (pool `max(2*10, 3*5)` = 20), so k=10 is unmeasurable through `/chat` as
+  configured: `pif_chat_check`'s `retrieval_at_k["10"]` reads
+  `k_complete: false` for every question. **Arm A of any A/B therefore has to
+  raise it to 10, which means the control is not today's behaviour.**
+- The quota code is **not deployed**: the `backend` image is built from source,
+  and only `../.env` is bind-mounted read-only at `/app/.env`
+  (`infra/docker-compose.yml:92-110`). Changing the code needs `up -d --build`;
+  changing `.env` needs `restart`, because `get_settings()` is `@lru_cache` and
+  Compose sees no diff on an unchanged host path, so `up -d` alone is a no-op.
+- `/chat` has no dry-run: it always writes a conversation plus 2 SQL message rows
+  and always generates (tool loop `max_iterations=3` + at most one
+  citation-format repair ⇒ 1–4 completions per call).
+
+`docs/page-quota-serving-ab-protocol.md` is the written response to all of that —
+quota 0 vs 1 at k=10 through `/chat`, `[APPROVAL]`-gated rebuild and `.env` edit,
+read-only preflight (including an admin role check, because
+`include_evidence_trace` is admin-only), deterministic retrieval-shape metrics as
+the primary endpoint and noisy answer-level metrics as secondary, acceptance
+criteria, a 40-request / 40–160-completion cost bound, and rollback. **It has not
+been executed.** It recommends approving a read-only
+`POST /workspaces/{id}/retrieve` probe instead; `POST /admin/eval/run` is not a
+substitute (it reads only the packaged `seed/gold_qa.jsonl`, has no page gold,
+and still calls `orch.answer()`).
+
+**Direct-host experiment numbers are still not API numbers.**
+
+## Steps 3–12: state as of 2026-10-19
+
+The table below was written against an earlier tree. Four rows were wrong by the
+time this round ended, so each now says what was actually re-checked.
 
 | Item | State |
 |---|---|
-| `openai_compatible` provider | Absent. `config.py` accepts `llm_provider="omniroute"` but `get_llm()` has no branch for it, so it **silently returns `StubLLM`**. `OpenAIChatLLM`/`AnthropicLLM`/`OllamaLLM` read `settings` fields that no longer exist, so they would raise `AttributeError`. |
-| Ollama zero-tool-call bug | Confirmed — `llm.py:465` returns `tool_calls=[]` unconditionally; `tools` is never sent. Same in `AnthropicLLM`. |
-| Calculation engine (`app/calc`) | Absent. No provenance object anywhere. |
-| Query route enum | Absent. Ad-hoc `mode: str` + `is_metric_lookup` booleans. |
-| Silent filter-drop | Confirmed — `hybrid.py:185-188` drops the company filter on zero results; `query_understanding.py:86-93` drops the year filter; `hybrid.py:358` falls back to BM25-only on vector error. None abstain. |
-| Persistent BM25 | Absent — `BM25Okapi` rebuilt over the candidate set every query (`hybrid.py:368`). |
-| Verifier | `citation.py` uses token-overlap + 3-char number-prefix string matching; no Decimal comparison. `harness.py:_num_close` uses float with 0.01 tolerance. No ABSTAIN path. |
-| Evaluation metrics | Placeholders — `context_precision` and `context_recall` are the *same* `n_retrieved/5` formula. No Recall@K, Precision@K, MRR, NDCG, EM or F1 exist. |
+| `openai_compatible` / omniroute provider | **Fixed** — commit dbaaa7e. `get_llm()` has an `omniroute` branch (`providers/llm.py:484`) that constructs `OmnirouteLLM(OpenAIChatLLM)` (`:368`); the factory only returns `StubLLM` when the key is unset, and it logs a warning when it does. `openai_api_key`/`anthropic_api_key`/`*_chat_model` are declared on `Settings` as `SecretStr` and read with `get_secret_value()`. The silently-stubbed factory was the cause of the "0 answers" live battery. |
+| Ollama / Anthropic zero-tool-call bug | **Still true.** `AnthropicLLM.chat` (`:395`) and `OllamaLLM.chat` (`:403`) accept `tools` and never put it on the wire, then return `tool_calls=[]` unconditionally (`:420`, `:450`). Only the OpenAI-shaped path (`:269-278`) parses tool calls. Not on the live path — `.env` uses `LLM_PROVIDER=omniroute` — but it is a latent trap for anyone who switches provider. |
+| Calculation engine (`app/calc`) | Absent. `ls app/` has no `calc`; no provenance object anywhere. |
+| Query route enum | Absent. Still `mode: str = "auto"` (`reasoning/orchestrator.py:47`) plus the `is_metric_lookup` boolean (`query_understanding.py:75`). |
+| Silent filter-drop | **Partly fixed, and the row as written is stale.** The vector path no longer degrades: `_dense_search` raises `ProviderError` on embedding *and* search failure (`hybrid.py:611-624`) — there is no BM25-only fallback any more. The company relaxation still happens (`:347-351`) but is reported as `company_filter_relaxed` in `filter_diagnostics` alongside the `applied_filter` actually used. The **year** filter is still dropped silently when no corpus year matches (`query_understanding.py:86-104`); the only trace of it is the absence of `year` in `applied_filter`. None of these abstain. |
+| Persistent BM25 | Absent — `BM25Okapi` is still built over the candidate set per query (`hybrid.py:634`). |
+| Verifier | **Much of the row is stale.** `citation.py` now does a numeric-subset test plus per-amount **currency and scale binding inside one cited chunk** (`:239-285`, with the PIF `ª`-as-SAR glyph special case), prefers an LLM judge and falls back to token overlap (`:160-176`), and classifies SUPPORTED / PARTIAL / REJECTED at `_REJECT_RATIO = 0.5` (`:58`, `:117`). The orchestrator **does** fail closed: on PARTIAL/REJECTED it replaces the draft with a refusal and records `citation_verification_abstained` (`orchestrator.py:219-231`). Still true: no `Decimal` comparison, and `harness.py:_num_close` is float with 0.01 tolerance (`:242-246`). |
+| Evaluation metrics | **Two harnesses, and they are not the same thing.** The packaged serving harness still has the placeholder pair — `context_precision` and `context_recall` are the identical `min(1.0, n_retrieved/5.0)` (`harness.py:190-191`). Recall@K now exists, but only in the **offline** stage-attribution harness (`evaluation/pif_stages.py`) and the experiment scripts. No Precision@K, MRR, NDCG, EM or F1 anywhere; FinQA/TAT-QA answer scoring absent. |
 | FinQA / TAT-QA | Absent. |
 | Market data | Absent. |
-| Vision / chart module | Absent (`vision_model` config has no consumers). |
-| Frontend login | Absent — `ConnectionGate.tsx` is a paste-API-key flow. |
-| Auth holes | Tenant creation is unauthenticated (`auth.py:35`); API keys stored and echoed **in plaintext** (`models.py:74`, `security.py:98`); no login rate limiting. The prod `JWT_SECRET` guard is **already correct** (`config.py:246`). |
+| Vision / chart module | Absent — `vision_model` is consumed only by the config's own role map (`config.py:125`, `:290`); no module passes an image to a model. `chart-reading` exists only as the probe below. |
+| Frontend login | Absent — `ConnectionGate.tsx` is still a paste-API-key flow. |
+| Auth holes | Still open, and now measurable: the **11 xfails** in `tests/test_api_isolation.py` are exactly these — unauthenticated `POST /auth/tenants`, `POST /auth/users` trusting a caller-supplied `tenant_id`, the API key echoed by `UserOut`/`/auth/me` and stored in plaintext, `GET /admin/eval/runs` with no tenant filter, and `POST /messages/{id}/feedback` with no workspace check. No login rate limiting. The prod `JWT_SECRET` guard is **correct** (`config.py`). |
 
 ## Gateway reality (`http://localhost:20128/v1`)
 
@@ -451,13 +739,26 @@ Specialised/safety models that answered chat but are not general-purpose:
 `nemotron-3.5-content-safety`, `llama-3.1-nemotron-safety-guard-8b-v3`,
 `riva-translate-4b-instruct-v2`, `muse-glimmer-30b`.
 
-### Embeddings and reranking: NONE AVAILABLE
+### Embeddings and reranking: none on the gateway — corrected 2026-10-19
 
 All 8 embedding candidates returned upstream `404`, and there is **no rerank
-route**. Per the brief, embeddings must therefore come from a local model.
-Neither option is currently installed on this machine: Ollama's binary exists
-but the daemon is not running (`:11434` refused), and `sentence-transformers`
-is not in the venv.
+route**, so embeddings must come from a local model. The sentence *"Neither
+option is currently installed on this machine"* written at that time is **no
+longer true**, and contradicted the Decision-2 section above; the accurate state
+is:
+
+- **Embeddings work locally.** `ollama serve` was started and
+  `nomic-embed-text` (274 MB) pulled to verify `OllamaEmbeddings` for real —
+  768-dim, L2-normalised, `EMBEDDINGS_PROVIDER=ollama` is what `.env` runs
+  today. Cold first call 32.2 s (model load).
+- **Reranking does not.** `RERANKER_PROVIDER=stub`, `COHERE_API_KEY` empty, and
+  `sentence_transformers` / `torch` / `cohere` are absent from the venv, so
+  `CohereReranker` and the `cross-encoder/ms-marco-MiniLM-L-6-v2` path cannot be
+  constructed. The live reranker is the query-term-coverage stub. This is the
+  single most consequential fact in the retrieval findings below — the page
+  quota's measured gain partly *compensates* for the stub.
+- Ollama serves only `nomic-embed-text` and `llama3.2:3b`; no reranker model is
+  available through it either.
 
 ## Atlas Search spike: VIABLE
 
@@ -468,3 +769,68 @@ tenant filter worked (102 ms), `Decimal128` round-tripped, replica-set
 transactions committed, RSS ~810 MiB. Two gotchas found: exact-match filters
 need `lucene.keyword` (not `lucene.keyword_analyzer`), and the score metadata
 field is `$meta: "vectorSearchScore"`.
+
+## Running the app in Docker, and where the API key comes from — verified 2026-10-19
+
+`start.bat` / `stop.bat` (repo root) wrap the `app` profile. Start is
+`docker compose -f infra/docker-compose.yml --profile app up -d` followed by a
+health poll on `finrag-backend` (180s cap) before the URLs are printed. Stop
+takes down only `backend`/`frontend`; `mongo`, `mongo-test` and `qdrant` stay up
+so the next start is instant.
+
+The demo credentials have to be created **inside** the backend container:
+
+```
+docker exec finrag-backend python -m app.cli seed
+```
+
+Raw output (key truncated — it is a credential, not to be committed):
+
+```
+✓ created tenant: 2395931ada5f46db99c3c570acb3f921
+✓ created user: analyst@demo.local
+    email   : analyst@demo.local
+    api_key : 2906…  (48 chars, redacted)
+    workspace: 40d2e18542094a768a5a01b42a30b71d  (Demo Workspace)
+```
+
+`app.cli seed` reuses an existing tenant/user/workspace and always prints the
+`api_key` (`cli.py:93-96`), so re-running it is credential recovery, not a
+duplicate insert.
+
+That key was read back from the container's own store and replayed against both
+the API and the browser path, without ever printing it:
+
+```
+backend direct  200  [{"id":"40d2e18542094a768a5a01b42a30b71d","name":"Demo Workspace",…
+via Next proxy  200  [{"id":"40d2e18542094a768a5a01b42a30b71d",…
+auth/me proxy   200  {"id":"11e2669df2e84cb6a332851c46c5e7a2","email":"analyst@demo.local",…
+bogus key via proxy 401
+```
+
+Why the host command no longer works for the container UI — the same
+`select(User)` run in both places:
+
+```
+HOST       D:\Project\Agentic-Fin-Rag\backend\data\app.db   users: 0  workspaces: 0
+CONTAINER  /app/data/app.db  (volume backend_data)          users: 2  workspaces: 2
+```
+
+Two separate SQLite files, two separate MongoDB servers (host `27017` native
+mongod vs container `27019`). A key seeded on the host cannot authenticate the
+Docker API. This was the reported symptom.
+
+Smoke checks this round: `GET :3000/` → 200, `GET :3000/api/health` → 200
+(through the Next rewrite), `GET :3000/api/workspaces` with no key → 401,
+`GET :8010/docs` → 200. `stop.bat` then left both ports refusing (`HTTP 000`)
+and `start.bat` restored them to healthy.
+
+Side effect worth knowing: `finrag-mongo-test` (`:27018`) is a default-profile
+service, so `--profile app up` starts it too. Harmless, but it is now always
+running after `start.bat`.
+
+Open question for the user: `demo.ps1` and the host path in `README.md` still
+write to `backend/data/` (SQLite + Qdrant local mode). With the containers as
+the default run mode, those host stores are dead weight — either keep both paths
+documented (current state) or retire the host path.
+

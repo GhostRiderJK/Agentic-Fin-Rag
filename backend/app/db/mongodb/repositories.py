@@ -169,17 +169,25 @@ class DocumentRepository(BaseRepository):
         self,
         ctx: TenantContext,
         *,
-        workspace_id: str,
-        status: str,
+        workspace_id: Optional[str] = None,
+        status: Optional[str] = None,
         company: Union[str, Sequence[str], None] = None,
         year: Union[int, Sequence[int], None] = None,
         quarter: Union[str, Sequence[str], None] = None,
         doc_type: Union[str, Sequence[str], None] = None,
     ) -> List[Dict[str, Any]]:
-        """Retrieval's metadata prefilter: workspace + status + any subset of
-        company/year/quarter/doc_type. Each filter accepts one value or a list.
+        """Retrieval's metadata prefilter: any subset of workspace, status and
+        company/year/quarter/doc_type. Each filter accepts one value or many.
+
+        ``workspace_id`` and ``status`` may be omitted for the tenant-wide
+        pre-check retrieval does before relaxing a company filter; the tenant
+        filter itself is never optional.
         """
-        query: Dict[str, Any] = {"workspace_id": workspace_id, "status": status}
+        query: Dict[str, Any] = {}
+        if workspace_id:
+            query["workspace_id"] = workspace_id
+        if status:
+            query["status"] = status
         for field_name, value in (
             ("company", company),
             ("year", year),

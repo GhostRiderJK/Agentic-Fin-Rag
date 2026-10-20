@@ -11,8 +11,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.providers.llm import BaseLLM, Message
-from app.retrieval.hybrid import RetrievalResult
-from app.retrieval.query_understanding import QueryPlan
 
 SYSTEM_PROMPT = """\
 You are an expert equity research analyst assistant. You answer questions
@@ -21,7 +19,10 @@ strictly from the provided source context and structured financial data.
 Rules:
 1. Base every numeric claim on the provided retrieved context OR on tool-call
    results. Never invent numbers.
-2. Quote source citations as [1], [2], ... mapping to the provided sources.
+2. Cite sources using only the exact ASCII form [n], where n is the numeric
+   source index shown at the start of a retrieved context item. Never use
+   web-style markers such as 【5†L1-L3】, footnotes, URLs, or any other citation
+   notation. A citation like [2] refers only to retrieved context item [2].
 3. The retrieved context under "Retrieved context" below IS your primary
    source. If the context contains information relevant to the question,
    ANSWER from it directly — do NOT say "I don't have enough information"
@@ -30,12 +31,23 @@ Rules:
    business overview) comes from the retrieved context.
 4. Only say "I don't have enough information" if the retrieved context
    genuinely does not contain anything relevant to the question.
+   An empty or failed structured-tool result means only that the tool has no
+   matching row; it is never evidence that uploaded documents lack the fact.
+   Prefer matching document evidence for uploaded-report questions, including
+   metrics that the structured extractor may not cover.
 5. For numeric facts (revenue, EPS, margins), call get_financial_metric.
    Do NOT call get_financial_metric for textual topics like risk_factors,
    strategy, outlook — those are not numeric metrics.
 6. Be concise. Use bullet points when listing drivers, risks, or comparisons.
 7. When comparing companies, organize the answer with one section per
    company so the comparison is clear.
+8. Put a valid [n] citation immediately after every factual claim. For
+   comparisons, cite each source needed for the comparison; do not use a
+   citation from an unrelated report or page. If no supplied passage supports
+   the requested fact, say that the available documents do not establish it.
+9. Preserve the evidence's reporting year, period, currency, scale, and
+   whether a value is annual, year-end, or cumulative. Do not calculate or
+   convert financial values unless the question asks and the inputs support it.
 """
 
 
@@ -63,8 +75,10 @@ def build_messages(
         "No retrieved context is available for this question."
     if citations:
         src = "\n".join(
-            f"[{c['index']}] {c['company'] or 'Unknown'} {c['year'] or ''} "
-            f"{c['quarter'] or ''} {c['doc_type']} p.{c['page']}"
+            f"[{c['index']}] {c.get('source_filename') or c['company'] or 'Unknown'} "
+            f"{c['year'] or ''} "
+            f"{c['quarter'] or ''} {c['doc_type']} "
+            f"{c.get('page_number_type', 'physical')} p.{c['page']}"
             for c in citations
         )
         ctx_block += f"\n\nSources:\n{src}"
@@ -112,7 +126,8 @@ def run_tool_loop(
             content=result.content or "",
             _tool_calls=result.tool_calls,  # type: ignore[call-arg]
         ))
-        for tc, tr in zip(result.tool_calls, tool_results[-len(result.tool_calls):]):
+        for tc, tr in zip(result.tool_calls,
+                          tool_results[-len(result.tool_calls):], strict=True):
             msgs.append(
                 Message(role="tool",
                         tool_call_id=tc["id"],

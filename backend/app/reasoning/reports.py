@@ -7,8 +7,7 @@ abstractions as the chat orchestrator.
 
 from __future__ import annotations
 
-from sqlalchemy.orm import Session
-
+from app.db.mongodb.tenant_context import TenantContext
 from app.providers.llm import BaseLLM, Message, get_llm
 from app.retrieval.hybrid import HybridRetriever
 from app.retrieval.query_understanding import understand_query
@@ -35,12 +34,12 @@ THESIS_SECTIONS = [
 
 
 def build_report(
-    *, db: Session, workspace_id: str, company: str,
+    ctx: TenantContext, *, company: str,
     report_type: str = "summary", year: int | None = None,
     quarter: str | None = None,
 ) -> dict:
     llm = get_llm()
-    retriever = HybridRetriever(db, workspace_id=workspace_id)
+    retriever = HybridRetriever(ctx)
     period = ""
     if year:
         period = f"{year}"
@@ -53,12 +52,11 @@ def build_report(
     seen_chunk_ids: set[str] = set()
     metrics_snapshot: dict = {}
     try:
-        metrics_snapshot = list_metrics(db, workspace_id=workspace_id,
-                                        company=company, fiscal_year=year)
+        metrics_snapshot = list_metrics(ctx, company=company, fiscal_year=year)
     except Exception:
         pass
 
-    dispatch, tool_specs = build_dispatcher(db, workspace_id=workspace_id)
+    dispatch, tool_specs = build_dispatcher(ctx)
 
     for section in sections:
         q = f"{company} {period} {section}".strip()

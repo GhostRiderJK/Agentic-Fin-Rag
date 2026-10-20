@@ -13,7 +13,7 @@ The schema stores:
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Protocol
 
 from app.core.config import get_settings
 from app.core.errors import ProviderError
@@ -49,13 +49,15 @@ class BaseVectorDB(Protocol):
 class QdrantVectorDB:
     name = "qdrant"
 
-    def __init__(self) -> None:
+    def __init__(self, *, collection_name: str | None = None) -> None:
         try:
             from qdrant_client import QdrantClient
         except ImportError as e:  # pragma: no cover
             raise ProviderError("qdrant-client not installed") from e
         settings = get_settings()
-        self._collection = settings.qdrant_collection
+        # Explicit collection injection is used by isolated maintenance tools.
+        # The normal application still follows QDRANT_COLLECTION.
+        self._collection = collection_name or settings.qdrant_collection
         if settings.qdrant_mode == "remote":
             self._client = QdrantClient(
                 url=settings.qdrant_url or None,
@@ -69,28 +71,55 @@ class QdrantVectorDB:
         self._dim: int | None = None
 
     def ensure_collection(self, dim: int) -> None:
-        from qdrant_client.http.exceptions import UnexpectedResponse
+        if dim <= 0:
+            raise ProviderError("Embedding dimension must be positive")
+        from qdrant_client.http.models import Distance, VectorParams
 
-        self._dim = dim
         try:
-            self._client.get_collection(self._collection)
-            return
-        except (UnexpectedResponse, ValueError):
-            pass
-        from qdrant_client.http.models import (
-            Distance,
-            VectorParams,
-        )
+            exists = self._client.collection_exists(self._collection)
+        except Exception as e:
+            raise ProviderError("Could not verify Qdrant collection readiness") from e
 
-        self._client.recreate_collection(
-            collection_name=self._collection,
-            vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
-        )
+        if exists:
+            try:
+                collection = self._client.get_collection(self._collection)
+            except Exception as e:
+                raise ProviderError(
+                    "Could not inspect existing Qdrant collection; refusing to replace it"
+                ) from e
+            vectors = collection.config.params.vectors
+            # This application currently uses one unnamed cosine vector. Named
+            # vector collections require an explicit schema migration instead
+            # of guessing which vector should receive document embeddings.
+            stored_dim = getattr(vectors, "size", None)
+            if stored_dim != dim:
+                raise ProviderError(
+                    f"Qdrant collection {self._collection!r} has vector dimension "
+                    f"{stored_dim!r}, configured embeddings have dimension {dim}; "
+                    "refusing to modify existing vectors"
+                )
+            self._dim = dim
+            return
+
+        try:
+            self._client.create_collection(
+                collection_name=self._collection,
+                vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
+            )
+        except Exception as e:
+            raise ProviderError("Could not create Qdrant collection") from e
+        self._dim = dim
         log.info("created qdrant collection %s (dim=%d)", self._collection, dim)
 
     def upsert(self, points: list[VectorPoint]) -> None:
         from qdrant_client.http.models import PointStruct
 
+        if self._dim is not None and any(
+            len(p["vector"]) != self._dim for p in points
+        ):
+            raise ProviderError(
+                f"Qdrant point vector width does not match configured dimension {self._dim}"
+            )
         ps = [
             PointStruct(id=str(p["id"]), vector=p["vector"], payload=p["payload"])
             for p in points
@@ -102,6 +131,11 @@ class QdrantVectorDB:
     def search(self, vector, *, top_k, filter_=None):
         from qdrant_client.http.models import Filter
 
+        if self._dim is not None and len(vector) != self._dim:
+            raise ProviderError(
+                f"Qdrant query vector width {len(vector)} does not match "
+                f"configured dimension {self._dim}"
+            )
         flt = Filter(must=_qdrant_filter(filter_)) if filter_ else None
         try:
             # Newer qdrant-client deprecates .search in favor of query_points;
@@ -133,7 +167,7 @@ class QdrantVectorDB:
         ]
 
     def delete_by_document(self, document_id: str) -> None:
-        from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 
         self._client.delete(
             collection_name=self._collection,
@@ -151,8 +185,8 @@ class QdrantVectorDB:
             r = self._client.count(collection_name=self._collection,
                                     count_filter=flt, exact=True)
             return int(r.count)
-        except Exception:
-            return 0
+        except Exception as e:
+            raise ProviderError("Could not read Qdrant collection count") from e
 
 
 def _qdrant_filter(filter_: dict | None) -> list:
@@ -183,21 +217,36 @@ class InMemoryVectorDB:
         self._points: list[VectorPoint] = []
 
     def ensure_collection(self, dim: int) -> None:
+        if dim <= 0:
+            raise ProviderError("Embedding dimension must be positive")
         self._dim = dim
 
     def upsert(self, points: list[VectorPoint]) -> None:
+        if self._dim is not None and any(
+            len(p["vector"]) != self._dim for p in points
+        ):
+            raise ProviderError(
+                f"In-memory point vector width does not match configured dimension {self._dim}"
+            )
         for p in points:
             self._points.append(p)
 
     def search(self, vector, *, top_k, filter_=None) -> list[SearchHit]:
         import math
 
+        if hasattr(self, "_dim") and len(vector) != self._dim:
+            raise ProviderError(
+                f"In-memory query vector width {len(vector)} does not match "
+                f"configured dimension {self._dim}"
+            )
         scored = []
         for p in self._points:
             if filter_ and not _matches(p["payload"], filter_):
                 continue
             v = p["vector"]
-            dot = sum(a * b for a, b in zip(vector, v))
+            if len(vector) != len(v):
+                raise ProviderError("In-memory stored vector dimension is inconsistent")
+            dot = sum(a * b for a, b in zip(vector, v, strict=True))
             na = math.sqrt(sum(x * x for x in vector)) or 1.0
             nb = math.sqrt(sum(x * x for x in v)) or 1.0
             scored.append((p, dot / (na * nb)))
@@ -259,8 +308,12 @@ def get_vectordb() -> BaseVectorDB:
             "the same process, or (2) set QDRANT_MODE=remote and run a qdrant "
             "server. Falling back to in-memory (vectors will NOT be shared "
             "across processes).",
-            e,
+            type(e).__name__,
         )
+        if settings.qdrant_mode == "remote":
+            raise ProviderError(
+                "Configured remote Qdrant is unavailable; refusing to use a local memory store"
+            ) from e
         _vdb_singleton = InMemoryVectorDB()
     return _vdb_singleton
 

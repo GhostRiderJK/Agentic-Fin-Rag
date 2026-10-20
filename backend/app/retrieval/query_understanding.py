@@ -20,8 +20,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from app.db.models import DocumentType
-
+from app.db.enums import DocumentType
 
 _COMPANIES = {
     "Apple": "AAPL", "Microsoft": "MSFT", "NVIDIA": "NVDA", "Tesla": "TSLA",
@@ -34,6 +33,17 @@ _COMPANIES = {
     "Bank Central Asia": "BBCA", "BCA": "BBCA", "Telkom": "TLKM",
     "Astra": "ASII", "BRI": "BBRI",
     "ACME": "ACME",
+    "PIF": "PIF", "Public Investment Fund": "PIF",
+    "Red Sea Global": "PIF",
+    "BMO": "BMO", "Bank of Montreal": "BMO",
+    "TD": "TD", "Toronto-Dominion": "TD",
+}
+
+_COMPANY_CANONICAL = {
+    "Public Investment Fund": "PIF",
+    "Red Sea Global": "PIF",  # RSG is covered by PIF annual-report documents.
+    "Bank of Montreal": "BMO",
+    "Toronto-Dominion": "TD",
 }
 
 _DOC_TYPE_HINTS = {
@@ -112,8 +122,9 @@ def understand_query(question: str) -> QueryPlan:
     for name, ticker in _COMPANIES.items():
         # Match "Apple", "Apple's", "Apples" — i.e. name followed by optional 's or s
         if re.search(rf"\b{re.escape(name)}(?:['\u2019]?s)?\b", q, re.IGNORECASE):
-            if name not in plan.companies:
-                plan.companies.append(name)
+            company = _COMPANY_CANONICAL.get(name, name)
+            if company not in plan.companies:
+                plan.companies.append(company)
                 plan.tickers.append(ticker)
     # Direct ticker matches (e.g. "NVDA")
     for name, ticker in _COMPANIES.items():

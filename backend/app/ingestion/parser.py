@@ -33,6 +33,7 @@ class ParsedPage:
     page: int
     text: str
     tables: list[TableExtract] = field(default_factory=list)
+    printed_page: int | None = None
 
 
 @dataclass
@@ -108,7 +109,14 @@ def _parse_pdf(p: Path) -> ParsedDocument:
                         tables_md.append(TableExtract(markdown=md, rows=rows, page=i))
             except Exception as e:  # pragma: no cover
                 log.debug("table extraction failed on page %d: %s", i, e)
-            pages.append(ParsedPage(page=i, text=text, tables=tables_md))
+            # Annual reports commonly impose two printed pages on one PDF
+            # page. Preserve the first printed page number for user citations;
+            # ``page`` remains the 1-based physical PDF index.
+            printed = _printed_page_number_from_page(page, i)
+            if printed is None:
+                printed = _printed_page_number(text)
+            pages.append(ParsedPage(page=i, text=text, tables=tables_md,
+                                    printed_page=printed))
             all_tables.extend(tables_md)
             total_text += text + "\n"
 
@@ -124,6 +132,79 @@ def _parse_pdf(p: Path) -> ParsedDocument:
         needs_ocr=needs_ocr,
         source_format="pdf",
     )
+
+
+def _printed_page_number_from_page(page, physical_page: int) -> int | None:
+    """Read the left printed page number from footer words by PDF position."""
+    try:
+        chars = [
+            char for char in page.chars
+            if char["text"].isdigit()
+            and char["x0"] <= page.width * 0.1
+            and char["top"] >= page.height - 55
+        ]
+        # Some PDF text layers duplicate glyphs at exactly the same location.
+        # De-duplicate by character position instead of collapsing repeated
+        # digits, since a legitimate printed page can itself contain repeats.
+        unique = {}
+        for char in chars:
+            key = (char["text"], round(char["x0"], 1), round(char["top"], 1))
+            unique[key] = char
+        footer_number = "".join(
+            char["text"] for char in sorted(unique.values(), key=lambda c: c["x0"])
+        )
+        if footer_number:
+            return int(footer_number)
+
+        # Fallback for parser doubles that expose words but no character list.
+        words = page.extract_words()
+        left_footer_numbers = [
+            _normalize_footer_number(word["text"])
+            for word in words
+            if word["text"].isdigit()
+            and word["x0"] <= page.width * 0.1
+            and word["top"] >= page.height - 55
+        ]
+    except Exception as exc:  # malformed page geometry: use text fallback
+        log.debug("printed-page geometry unavailable on page %d: %s",
+                  physical_page, exc)
+        return None
+    return left_footer_numbers[-1] if left_footer_numbers else None
+
+
+def _normalize_footer_number(value: str) -> int:
+    # pdfplumber sometimes duplicates glyphs in small footer numerals:
+    # ``2266`` is ``26`` and ``1133`` is ``13``.
+    normalized = re.sub(r"(\d)\1(\d)\2", r"\1\2", value)
+    return int(normalized)
+
+
+def _printed_page_number(text: str) -> int | None:
+    """Read a printed number from footer-shaped text lines when available."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    # Check only footer-shaped lines. Searching a broad tail window allowed
+    # unrelated body numbers (e.g. "2024 ... 91 eligible projects") to be
+    # mistaken for printed page numbers.
+    footer_lines = lines[-6:]
+    normalized = [re.sub(r"(\d)\1(\d)\2", r"\1\2", line)
+                  for line in footer_lines]
+
+    for line in reversed(normalized):
+        # Common report footer: "42 | PIF Annual Report 2023 | 43". Some PDFs
+        # duplicate glyphs, yielding "42 || PPIIFF AAnnnn...".
+        match = re.match(
+            r"^(\d{1,3})\s*\|+\s*(?:PIF\s+Annual\s+Report|PPIIFF)",
+            line, re.IGNORECASE,
+        )
+        if match:
+            return int(match.group(1))
+
+    # Other annual reports extract the footer as a bare spread, e.g. "10 11".
+    for line in reversed(normalized[-3:]):
+        match = re.fullmatch(r"(\d{1,3})\s+(\d{1,3})", line)
+        if match:
+            return int(match.group(1))
+    return None
 
 
 # ---------------------------------------------------------------------------

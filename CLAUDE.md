@@ -11,6 +11,17 @@
 - Never run git commit, stash, reset, checkout or clean unless asked.
 - Do not create backup copies (*_old.py), logs, status files or summaries in the repo unless asked.
 
+# Runtime
+- The app runs in Docker: `start.bat` / `stop.bat` at the repo root (compose `app`
+  profile). Frontend http://127.0.0.1:3000, API http://127.0.0.1:8010 (container
+  port 8000), MongoDB 127.0.0.1:27019, Qdrant 6333.
+- Demo credentials come from `docker exec finrag-backend python -m app.cli seed`.
+  The host `python -m app.cli seed` writes a different SQLite file, so its key gets
+  401 from the container API. Never paste a real key into a doc, log, or reply.
+- Do not start host-side `ira serve` or `npm run dev` unless asked: port 3000 is
+  already published by the frontend container, and the API container deliberately
+  uses host 8010 so a host `ira serve` can keep 8000.
+
 # Test environment
 - Run tests from D:\Project\agentic-fin-rag\backend (pyproject.toml is there).
 - Real MongoDB for integration tests: Atlas-local container `mongodb-atlas-test` at mongodb://127.0.0.1:27018/?directConnection=true (MONGODB_TEST_URL). Dev MongoDB (native service): 127.0.0.1:27017.

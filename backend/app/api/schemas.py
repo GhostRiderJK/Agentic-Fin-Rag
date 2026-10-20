@@ -7,8 +7,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from app.db.models import DocumentStatus, DocumentType, Role
-
+from app.db.enums import DocumentStatus, DocumentType
+from app.db.models import Role
 
 # ---- Auth --------------------------------------------------------------------
 
@@ -113,12 +113,17 @@ class ChatRequest(BaseModel):
     conversation_id: str | None = None
     mode: Literal["auto", "document_only", "structured_only"] = "auto"
     stream: bool = False
+    include_evidence_trace: bool = False
 
 
 class CitationOut(BaseModel):
     index: int
     chunk_id: str
     document_id: str
+    source_filename: str = ""
+    printed_page: int | None = None
+    physical_page: int | None = None
+    page_number_type: str = "physical"
     company: str | None
     year: int | None
     quarter: str | None
@@ -134,6 +139,7 @@ class ChatResponse(BaseModel):
     plan: dict[str, Any]
     tool_results: list[dict[str, Any]]
     verification: dict[str, Any]
+    generation: dict[str, Any] = Field(default_factory=dict)
     retrieval: dict[str, Any]
     latency_ms: int
     notes: list[str] = []
@@ -200,7 +206,22 @@ class JobOut(BaseModel):
 
 class EvalRunRequest(BaseModel):
     workspace_id: str
-    suite_path: str | None = None  # default to packaged suite
+    suite: str = ""  # empty = packaged gold set; names come from /admin/eval/suites
+
+
+class EvalAccepted(BaseModel):
+    """The suite run was queued; poll ``/jobs/{job_id}`` for the metrics."""
+
+    job_id: str
+    status: str
+    suite: str
+    workspace_id: str
+
+
+class EvalSuiteOut(BaseModel):
+    id: str
+    packaged: bool
+    n_items: int
 
 
 class EvalRunOut(BaseModel):

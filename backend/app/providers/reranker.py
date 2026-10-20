@@ -13,9 +13,6 @@ from typing import Protocol
 
 from app.core.config import get_settings
 from app.core.errors import ProviderError
-from app.core.logging import get_logger
-
-log = get_logger(__name__)
 
 
 class BaseReranker(Protocol):
@@ -27,6 +24,10 @@ class BaseReranker(Protocol):
 
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
+_STOPWORDS = {"a", "an", "and", "are", "as", "at", "by", "for", "from",
+              "how", "in", "is", "it", "of", "on", "or", "the", "to",
+              "was", "were", "what", "when", "where", "which", "who",
+              "with"}
 
 
 def _tok(s: str) -> set[str]:
@@ -39,7 +40,7 @@ def _tok(s: str) -> set[str]:
 
 
 class StubReranker:
-    """Jaccard-overlap-based lexical reranker.
+    """Query-term coverage lexical reranker.
 
     Deterministic, no network. A reasonable proxy that surfaces documents
     sharing the most distinctive query terms.
@@ -48,16 +49,19 @@ class StubReranker:
     name = "stub"
 
     def rerank(self, query: str, documents: list[str], top_k=None):
-        qtoks = _tok(query)
+        qtoks = _tok(query) - _STOPWORDS
         scored: list[tuple[int, float]] = []
         for i, doc in enumerate(documents):
             dtoks = _tok(doc)
             if not qtoks or not dtoks:
                 scored.append((i, 0.0))
                 continue
+            # Jaccard overlap penalizes a relevant long chunk for every
+            # unrelated token it contains. Measure query-term coverage so a
+            # passage that contains the requested metric and period ranks
+            # ahead of a short passage that matches only generic terms.
             inter = len(qtoks & dtoks)
-            union = len(qtoks | dtoks) or 1
-            scored.append((i, inter / union))
+            scored.append((i, inter / len(qtoks)))
         scored.sort(key=lambda t: t[1], reverse=True)
         if top_k is not None:
             scored = scored[:top_k]
@@ -116,18 +120,19 @@ def get_reranker() -> BaseReranker:
     provider = settings.reranker_provider
     if provider == "cohere":
         if not settings.cohere_api_key:
-            log.warning("RERANKER_PROVIDER=cohere but key unset; using stub")
-            _reranker_singleton = StubReranker()
-        else:
-            _reranker_singleton = CohereReranker()
+            raise ProviderError(
+                "COHERE_API_KEY is required when RERANKER_PROVIDER=cohere",
+                provider="cohere",
+            )
+        _reranker_singleton = CohereReranker()
     elif provider == "cross_encoder":
         try:
-            from sentence_transformers import CrossEncoder  # noqa: F401
-
             _reranker_singleton = _CrossEncoderReranker()
         except Exception as e:  # pragma: no cover
-            log.warning(f"cross-encoder unavailable ({e}); using stub")
-            _reranker_singleton = StubReranker()
+            raise ProviderError(
+                f"Cross-encoder reranker is unavailable: {e}",
+                provider="cross_encoder",
+            ) from e
     else:
         _reranker_singleton = StubReranker()
     return _reranker_singleton

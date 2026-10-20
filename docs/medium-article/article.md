@@ -775,6 +775,14 @@ For multi-process use, switch to `QDRANT_MODE=remote` and run a Qdrant server (s
 
 A `.env` file in the repo root **wins** over a globally exported `OPENAI_API_KEY` shell variable, so a stale global key cannot accidentally shadow the real one. And under `APP_ENV=test`, the `.env` file is never loaded, which keeps tests deterministic.
 
+### The app API key belongs to whichever world you run
+
+> `docker exec finrag-backend python -m app.cli seed`
+
+Once the stack runs in containers, the demo credentials have to be created *inside* the container. The API container keeps its users in the `backend_data` volume at `/app/data/app.db` and its documents in the compose MongoDB on host port 27019, while a host-side run uses `backend/data/app.db` and whatever `MONGODB_URL` says. Two SQLite files, two MongoDB servers, two sets of vectors — so a key seeded on the host returns `401` from the containerised API, which looks exactly like "the auth is broken". It isn't; you asked the wrong database.
+
+Re-running `seed` is safe: it reuses the existing tenant, user and workspace and prints the `api_key` again, so it doubles as credential recovery.
+
 ### Year selection as a trap
 
 Already covered in section 8 but worth emphasizing: filter years against `available_years` in the corpus, not against years mentioned in the question. This is the difference between "year as a filter" and "year as a content reference".

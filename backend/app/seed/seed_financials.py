@@ -1,4 +1,4 @@
-"""Seed the structured_financials table from the ACME sample data so the SQL
+"""Seed the structured financials collection from the ACME sample data so the
 tool-calling route is demonstrable even without PDF tables.
 
 Run:  python -m app.seed.seed_financials
@@ -6,15 +6,22 @@ Run:  python -m app.seed.seed_financials
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import typer
 from rich.console import Console
 from sqlalchemy import select
 
 from app.db.base import db_scope, init_db
-from app.db.models import StructuredFinancial, Workspace
+from app.db.models import Workspace
+from app.db.mongodb.repositories import StructuredFinancialRepository
+from app.db.mongodb.runtime import run_sync
+from app.db.mongodb.tenant_context import TenantContext
 
 app = typer.Typer(add_completion=False)
 console = Console()
+
+_financials = StructuredFinancialRepository()
 
 
 # Values from the ACME sample annual report's financial highlights section.
@@ -57,25 +64,38 @@ def main():
         if not ws:
             console.print("[red]✗[/red] no workspace. Run `ira seed` first.")
             raise typer.Exit(1)
+        ctx = TenantContext(tenant_id=ws.tenant_id, workspace_id=ws.id)
         added = 0
         for metric, year, quarter, value, unit, page in _ROWS:
-            existing = db.scalar(select(StructuredFinancial).where(
-                StructuredFinancial.workspace_id == ws.id,
-                StructuredFinancial.company == "ACME",
-                StructuredFinancial.metric == metric,
-                StructuredFinancial.fiscal_year == year,
-                StructuredFinancial.quarter == quarter,
-                StructuredFinancial.unit == unit,
-            ))
+            # Money through Decimal(str(...)): the literal above is a float, and
+            # the repository refuses a float in a decimal column.
+            amount = Decimal(str(value))
+            existing = run_sync(_financials.find_one(ctx, {
+                "workspace_id": ws.id,
+                "company": "ACME",
+                "metric": metric,
+                "fiscal_year": year,
+                "quarter": quarter,
+                "unit": unit,
+            }))
             if existing:
-                existing.value = value
+                run_sync(_financials.update_by_id(
+                    ctx, existing["id"], {"value": amount}))
                 continue
-            db.add(StructuredFinancial(
-                workspace_id=ws.id, company="ACME", ticker="ACME",
-                metric=metric, fiscal_year=year, quarter=quarter,
-                value=value, unit=unit, currency="USD", page=page,
-                confidence=1.0,
-            ))
+            run_sync(_financials.insert_one(ctx, {
+                "workspace_id": ws.id,
+                "document_id": None,
+                "company": "ACME",
+                "ticker": "ACME",
+                "metric": metric,
+                "fiscal_year": year,
+                "quarter": quarter,
+                "value": amount,
+                "unit": unit,
+                "currency": "USD",
+                "page": page,
+                "confidence": Decimal("1"),
+            }))
             added += 1
         console.print(f"[green]✓[/green] seeded {added} financial rows "
                       f"(workspace={ws.id})")

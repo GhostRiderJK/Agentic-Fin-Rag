@@ -175,8 +175,15 @@ def test_job_progress_round_trips_and_refuses_a_float(db, run, ctx_a):
 # -- coverage -----------------------------------------------------------------
 
 
-def test_every_float_column_in_the_legacy_schema_is_declared_or_exempt():
-    """Anything the SQL layer stored as ``Float`` is a money/ratio candidate.
+#: Money columns that have already moved to MongoDB, so the SQL layer no
+#: longer has a ``Float`` column to compare them against. Item (i) deletes the
+#: SQLAlchemy layer and this list with it.
+_MIGRATED = {"structured_financials.value", "structured_financials.confidence"}
+
+
+def test_every_float_column_in_the_legacy_schema_is_declared_or_migrated():
+    """Anything the SQL layer still stores as ``Float`` is a money/ratio
+    candidate.
 
     This is the drift guard while both layers exist: adding a Float column
     without deciding its Mongo counterpart's ``decimal_fields`` fails here,
@@ -201,8 +208,10 @@ def test_every_float_column_in_the_legacy_schema_is_declared_or_exempt():
     }
     # The SQL table names and the Mongo collection names coincide for the two
     # money-bearing tables, which is what makes this comparison meaningful.
-    assert float_columns == declared, (
-        f"undeclared money/ratio columns: "
-        f"{sorted(float_columns - declared)}; "
-        f"declared but not Float in SQL: {sorted(declared - float_columns)}"
+    undeclared = float_columns - declared
+    assert not undeclared, f"undeclared money/ratio columns: {sorted(undeclared)}"
+    stale = declared - float_columns - _MIGRATED
+    assert not stale, (
+        "decimal_fields naming neither a SQL Float column nor a migrated "
+        f"collection: {sorted(stale)}"
     )

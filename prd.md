@@ -429,6 +429,7 @@ Answer + Citations
 | Storage          | AWS S3 / Google Cloud Storage                |
 | Database         | PostgreSQL                                   |
 | Frontend         | Next.js + React                              |
+| Deployment       | Docker Compose (`infra/docker-compose.yml`), driven by `start.bat` / `stop.bat` |
 
 ---
 

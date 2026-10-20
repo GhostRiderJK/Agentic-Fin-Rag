@@ -1,4 +1,4 @@
-"""Async job queue (PRD §6: long-running reports & ingestion).
+"""Async job queue (PRD §6: long-running reports, ingestion and eval runs).
 
 Two modes (JOBS_MODE env):
   - inproc: a background ``threading.Thread`` worker that processes jobs
@@ -18,14 +18,14 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.errors import NotFoundError
 from app.core.logging import get_logger
-from app.db.base import db_scope, get_sessionmaker, init_db
-from app.db.models import Job, JobStatus, Workspace
+from app.db.base import get_sessionmaker
+from app.db.models import Job, JobStatus
+from app.db.mongodb.tenant_context import TenantContext
 from app.ingestion.pipeline import ingest_document
 
 log = get_logger(__name__)
@@ -35,13 +35,15 @@ log = get_logger(__name__)
 
 def enqueue_ingest(
     *, db: Session, workspace_id: str, tenant_id: str, file_path: str,
+    source_name: str | None = None,
     title: str | None = None, company: str = "", ticker: str = "",
     year: int | None = None, quarter: str = "", doc_type: Any = None,
 ) -> Job:
     job = Job(tenant_id=tenant_id, workspace_id=workspace_id, kind="ingest",
               status=JobStatus.queued,
               payload={
-                  "file_path": file_path, "title": title, "company": company,
+                  "file_path": file_path, "source_name": source_name,
+                  "title": title, "company": company,
                   "ticker": ticker, "year": year, "quarter": quarter,
                   "doc_type": doc_type.value if doc_type else None,
               })
@@ -70,6 +72,25 @@ def enqueue_report(
     return job
 
 
+def enqueue_eval(
+    *, db: Session, workspace_id: str, tenant_id: str, user_id: str,
+    suite: str,
+) -> Job:
+    """Queue a gold-set run.
+
+    A suite is 7-10 questions through the whole pipeline, so it is the longest
+    request the app can make and must not be answered inside the HTTP call.
+    """
+    job = Job(tenant_id=tenant_id, workspace_id=workspace_id, kind="eval",
+              status=JobStatus.queued,
+              payload={"suite": suite, "user_id": user_id})
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    _enqueue(job.id)
+    return job
+
+
 def get_job(job_id: str, db: Session | None = None) -> Job:
     own = db is None
     if own:
@@ -87,7 +108,7 @@ def get_job(job_id: str, db: Session | None = None) -> Job:
 
 # ---- in-proc worker ----------------------------------------------------------
 
-_queue: "queue.Queue[str]" = queue.Queue()
+_queue: queue.Queue[str] = queue.Queue()
 _worker_thread: threading.Thread | None = None
 _lock = threading.Lock()
 
@@ -127,7 +148,7 @@ def _worker_loop() -> None:  # pragma: no cover - background thread
 
 
 def _process_job(job_id: str, sm) -> None:
-    """Process one job: ingest or report."""
+    """Process one job: ingest, report or eval."""
     db = sm()
     try:
         job = db.get(Job, job_id)
@@ -140,9 +161,11 @@ def _process_job(job_id: str, sm) -> None:
 
         try:
             if job.kind == "ingest":
-                result = _do_ingest(job, db)
+                result = _do_ingest(job)
             elif job.kind == "report":
-                result = _do_report(job, db)
+                result = _do_report(job)
+            elif job.kind == "eval":
+                result = _do_eval(job, db)
             else:
                 raise ValueError(f"unknown job kind: {job.kind}")
             job.result = result
@@ -158,8 +181,8 @@ def _process_job(job_id: str, sm) -> None:
         db.close()
 
 
-def _do_ingest(job: Job, db: Session) -> dict:
-    from app.db.models import DocumentType
+def _do_ingest(job: Job) -> dict:
+    from app.db.enums import DocumentType
 
     p = job.payload
     doc_type = None
@@ -169,7 +192,9 @@ def _do_ingest(job: Job, db: Session) -> dict:
         except ValueError:
             doc_type = None
     result = ingest_document(
-        file_path=p["file_path"], workspace_id=job.workspace_id, db=db,
+        _job_ctx(job),
+        file_path=p["file_path"],
+        source_name=p.get("source_name"),
         title=p.get("title"), hint_company=p.get("company", ""),
         hint_ticker=p.get("ticker", ""), hint_year=p.get("year"),
         hint_quarter=p.get("quarter", ""), hint_doc_type=doc_type,
@@ -183,16 +208,43 @@ def _do_ingest(job: Job, db: Session) -> dict:
     }
 
 
-def _do_report(job: Job, db: Session) -> dict:
+def _do_report(job: Job) -> dict:
     from app.reasoning.reports import build_report
 
     p = job.payload
     out = build_report(
-        db=db, workspace_id=job.workspace_id, company=p["company"],
+        _job_ctx(job), company=p["company"],
         report_type=p.get("report_type", "summary"),
         year=p.get("year"), quarter=p.get("quarter"),
     )
     return out
+
+
+def _do_eval(job: Job, db: Session) -> dict:
+    from app.evaluation.harness import EvalRunner, EvalSuite
+    from app.evaluation.suites import resolve
+
+    path, name = resolve(job.payload.get("suite", ""))
+    suite = EvalSuite.from_jsonl(path, workspace_id=job.workspace_id, name=name)
+    result = EvalRunner(db, _job_ctx(job)).run(suite)
+    return {
+        "suite": result.suite,
+        "n_items": result.n_items,
+        "metrics": result.metrics,
+    }
+
+
+def _job_ctx(job: Job) -> TenantContext:
+    """Background work runs on behalf of the job's own tenant and workspace.
+
+    The Job row is written by an authenticated route that already verified the
+    workspace belongs to that tenant, so the pair is trusted here.
+    """
+    return TenantContext(
+        tenant_id=job.tenant_id,
+        user_id=job.payload.get("user_id"),
+        workspace_id=job.workspace_id,
+    )
 
 
 def wait_for_jobs(timeout: float = 30.0) -> None:

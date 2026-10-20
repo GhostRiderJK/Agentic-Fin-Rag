@@ -18,93 +18,96 @@ from __future__ import annotations
 import re
 from typing import Any, Callable
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-from app.db.models import StructuredFinancial
+from app.db.mongodb.repositories import StructuredFinancialRepository
+from app.db.mongodb.tenant_context import TenantContext, TenantContextError
+from app.db.mongodb.runtime import run_sync
 from app.providers.llm import ToolSpec
+
+_financials = StructuredFinancialRepository()
 
 
 def _normalize_company(name: str) -> str:
     return re.sub(r"\s+", " ", (name or "")).strip()
 
 
+def _workspace(ctx: TenantContext) -> str:
+    """Tools answer for one workspace; the context must already carry it."""
+    if not ctx.workspace_id:
+        raise TenantContextError(
+            "Structured-data tools need a workspace-scoped TenantContext",
+            repository="StructuredFinancialRepository",
+        )
+    return ctx.workspace_id
+
+
 def get_financial_metric(
-    db: Session,
+    ctx: TenantContext,
     *,
-    workspace_id: str,
     company: str,
     metric: str,
     fiscal_year: int | None = None,
     quarter: str = "",
 ) -> dict:
     company = _normalize_company(company)
-    q = select(StructuredFinancial).where(
-        StructuredFinancial.workspace_id == workspace_id,
-        StructuredFinancial.company.ilike(f"%{company}%"),
-        StructuredFinancial.metric == metric,
-    )
-    if fiscal_year is not None:
-        q = q.where(StructuredFinancial.fiscal_year == fiscal_year)
-    if quarter:
-        q = q.where(StructuredFinancial.quarter == quarter.upper())
-    q = q.order_by(StructuredFinancial.fiscal_year.desc(),
-                   StructuredFinancial.quarter.desc())
-    rows = list(db.scalars(q).all())
-    return {"metric": metric, "company": company, "results": [_row_dict(r) for r in rows]}
+    rows = run_sync(_financials.find_by_company(
+        ctx,
+        workspace_id=_workspace(ctx),
+        company=company,
+        metric=metric,
+        fiscal_year=fiscal_year,
+        quarter=quarter.upper() if quarter else None,
+    ))
+    return {"metric": metric, "company": company,
+            "results": [_row_dict(r) for r in rows]}
 
 
 def list_metrics(
-    db: Session, *, workspace_id: str, company: str, fiscal_year: int | None = None,
+    ctx: TenantContext, *, company: str, fiscal_year: int | None = None,
 ) -> dict:
     company = _normalize_company(company)
-    q = select(StructuredFinancial).where(
-        StructuredFinancial.workspace_id == workspace_id,
-        StructuredFinancial.company.ilike(f"%{company}%"),
-    )
-    if fiscal_year is not None:
-        q = q.where(StructuredFinancial.fiscal_year == fiscal_year)
-    rows = list(db.scalars(q).all())
-    metrics = sorted({r.metric for r in rows})
+    rows = run_sync(_financials.find_by_company(
+        ctx, workspace_id=_workspace(ctx), company=company,
+        fiscal_year=fiscal_year,
+    ))
+    metrics = sorted({r["metric"] for r in rows})
     return {"company": company, "fiscal_year": fiscal_year, "metrics": metrics,
             "count": len(metrics)}
 
 
 def compare_metrics(
-    db: Session, *, workspace_id: str, companies: list[str],
+    ctx: TenantContext, *, companies: list[str],
     metric: str, fiscal_year: int | None = None,
 ) -> dict:
     out: dict[str, Any] = {"metric": metric, "fiscal_year": fiscal_year, "results": {}}
     for c in companies:
-        r = get_financial_metric(db, workspace_id=workspace_id, company=c,
-                                 metric=metric, fiscal_year=fiscal_year)
+        r = get_financial_metric(ctx, company=c, metric=metric,
+                                 fiscal_year=fiscal_year)
         out["results"][c] = r["results"]
     return out
 
 
-def list_periods(db: Session, *, workspace_id: str, company: str) -> dict:
+def list_periods(ctx: TenantContext, *, company: str) -> dict:
     company = _normalize_company(company)
-    q = select(StructuredFinancial).where(
-        StructuredFinancial.workspace_id == workspace_id,
-        StructuredFinancial.company.ilike(f"%{company}%"),
-    )
-    rows = list(db.scalars(q).all())
-    periods = sorted({(r.fiscal_year, r.quarter) for r in rows}, reverse=True)
+    rows = run_sync(_financials.find_by_company(
+        ctx, workspace_id=_workspace(ctx), company=company))
+    periods = sorted({(r["fiscal_year"], r["quarter"]) for r in rows}, reverse=True)
     return {"company": company,
             "periods": [{"year": y, "quarter": q or "FY"} for y, q in periods]}
 
 
-def _row_dict(r: StructuredFinancial) -> dict:
+def _row_dict(r: dict) -> dict:
+    # ``value`` is a Decimal (Decimal128 at rest); a JSON string keeps every
+    # digit instead of rounding through a float on the way to the LLM.
     return {
-        "company": r.company,
-        "ticker": r.ticker,
-        "metric": r.metric,
-        "fiscal_year": r.fiscal_year,
-        "quarter": r.quarter or "FY",
-        "value": r.value,
-        "unit": r.unit,
-        "currency": r.currency,
-        "page": r.page,
+        "company": r["company"],
+        "ticker": r["ticker"],
+        "metric": r["metric"],
+        "fiscal_year": r["fiscal_year"],
+        "quarter": r["quarter"] or "FY",
+        "value": str(r["value"]),
+        "unit": r["unit"],
+        "currency": r["currency"],
+        "page": r["page"],
     }
 
 
@@ -181,20 +184,20 @@ TOOL_SPECS: list[ToolSpec] = [
 
 
 def build_dispatcher(
-    db: Session, *, workspace_id: str
+    ctx: TenantContext,
 ) -> tuple[Callable[[str, dict], dict], list[ToolSpec]]:
     """Return (dispatch_fn, tool_specs). The orchestrator calls
     dispatch_fn(name, args) to execute a tool call."""
 
     def dispatch(name: str, args: dict) -> dict:
         if name == "get_financial_metric":
-            return get_financial_metric(db, workspace_id=workspace_id, **args)
+            return get_financial_metric(ctx, **args)
         if name == "compare_metrics":
-            return compare_metrics(db, workspace_id=workspace_id, **args)
+            return compare_metrics(ctx, **args)
         if name == "list_metrics":
-            return list_metrics(db, workspace_id=workspace_id, **args)
+            return list_metrics(ctx, **args)
         if name == "list_periods":
-            return list_periods(db, workspace_id=workspace_id, **args)
+            return list_periods(ctx, **args)
         return {"error": f"unknown tool: {name}"}
 
     return dispatch, TOOL_SPECS

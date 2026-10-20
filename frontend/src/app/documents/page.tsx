@@ -6,11 +6,15 @@ import { ConnectionGate } from "@/components/ConnectionGate";
 import { WorkspacePicker } from "@/components/WorkspacePicker";
 import { api, type Document } from "@/lib/api";
 
+const JOB_POLL_INTERVAL_MS = 1500;
+const JOB_TIMEOUT_MS = 20 * 60 * 1000;
+
 export default function DocumentsPage() {
   const { apiKey, workspaceId } = useApp();
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [form, setForm] = useState({
     company: "", ticker: "", year: "", quarter: "", doc_type: "annual_report",
@@ -31,9 +35,10 @@ export default function DocumentsPage() {
   async function upload() {
     if (!apiKey || !workspaceId || !fileRef.current?.files?.[0]) return;
     setBusy(true); setErr(null);
+    setUploadStatus("Uploading document…");
     try {
       const file = fileRef.current.files[0];
-      await api.uploadDocument(apiKey, workspaceId, file, {
+      const accepted = await api.uploadDocument(apiKey, workspaceId, file, {
         company: form.company,
         ticker: form.ticker,
         year: form.year,
@@ -41,16 +46,34 @@ export default function DocumentsPage() {
         doc_type: form.doc_type,
         async_ingest: "true",
       });
-      // Refresh list (ingest is async; show whatever's there now)
-      setTimeout(async () => {
-        const d = await api.listDocuments(apiKey, workspaceId);
-        setDocs(d);
-      }, 1500);
+      const jobId = accepted.metadata?.job_id;
+      if (typeof jobId === "string" && jobId) {
+        const startedAt = Date.now();
+        let job = await api.getJob(apiKey, jobId);
+        while (job.status !== "succeeded" && job.status !== "failed") {
+          if (Date.now() - startedAt > JOB_TIMEOUT_MS) {
+            throw new Error("Ingestion is still running. Check the Jobs view for its status.");
+          }
+          const percent = Math.round(job.progress * 100);
+          setUploadStatus(percent > 0
+            ? `Processing document… ${percent}%`
+            : "Processing document…");
+          await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+          job = await api.getJob(apiKey, jobId);
+        }
+        if (job.status === "failed") {
+          throw new Error(job.error || "Document ingestion failed.");
+        }
+      }
+      setUploadStatus("Refreshing documents…");
+      setDocs(await api.listDocuments(apiKey, workspaceId));
       if (fileRef.current) fileRef.current.value = "";
+      setUploadStatus(null);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
       setBusy(false);
+      setUploadStatus(null);
     }
   }
 
@@ -114,6 +137,9 @@ export default function DocumentsPage() {
           </button>
           {!workspaceId && (
             <span className="text-xs text-amber-700 ml-2">Pick a workspace first.</span>
+          )}
+          {uploadStatus && (
+            <p role="status" className="text-xs text-slate-600">{uploadStatus}</p>
           )}
         </div>
 

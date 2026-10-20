@@ -16,7 +16,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any, Iterator, Literal, Protocol
+from collections.abc import Iterator
+from typing import Any, Literal, Protocol
 
 from app.core.config import get_settings
 from app.core.errors import ProviderError
@@ -119,18 +120,17 @@ class _ChatResultImpl:
 
 
 class StubLLM(BaseLLM):
-    """Deterministic offline LLM. Used in tests and when no provider key is set.
+    """Deterministic offline test double; it never produces factual answers.
 
-    It inspects the latest user message and any provided ``tools`` to produce
-    a plausible answer:
+    It inspects the latest user message and any provided ``tools``:
 
       * If tools are provided and the question looks like a metric lookup
         ("eps", "revenue", etc. with a company name), it emits a tool call.
-      * Otherwise it synthesizes an answer that echoes the question, lists any
-        embedded context, and adds a citation placeholder.
+      * Otherwise it returns an explicit abstention. It does not inspect the
+        evidence to synthesize an answer, so its output is not an answer-quality
+        or production-model evaluation.
 
-    The output is fully deterministic (seeded by content hash) so evals and
-    tests are stable.
+    The abstention is deterministic so tests remain stable.
     """
 
     name = "stub"
@@ -153,10 +153,6 @@ class StubLLM(BaseLLM):
             (m for m in reversed(messages) if m.get("role") == "user"), {}
         )
         q = (last_user.get("content") or "").strip()
-        joined = " ".join(
-            m.get("content", "") for m in messages if isinstance(m.get("content"), str)
-        )
-
         # Tool-calling path for metric lookups
         if tools:
             tool = self._pick_metric_tool(q, tools)
@@ -169,11 +165,13 @@ class StubLLM(BaseLLM):
                 )
                 return _ChatResultImpl(content="", tool_calls=[tc])
 
-        # Default synthesis: derive a coherent, deterministic answer
-        # If context (retrieved chunks) was provided in a system/assistant
-        # message, surface a short summary derived from it.
-        context_blob = self._collect_context(messages)
-        answer = self._compose_answer(q, context_blob, joined)
+        # This provider is a test double, not a financial answer generator.
+        # Never extract numbers from prompt wrappers or emit placeholder
+        # citations that could be mistaken for grounded output.
+        answer = (
+            "Offline test stub: no financial answer was generated. "
+            "Use a configured production model to evaluate answer quality."
+        )
 
         return _ChatResultImpl(content=answer, tool_calls=[])
 
@@ -218,44 +216,6 @@ class StubLLM(BaseLLM):
             quarter = f"Q{qm.group(1)}"
         return {"company": company, "metric": metric, "fiscal_year": year,
                 "quarter": quarter}
-
-    @staticmethod
-    def _collect_context(messages: list[Message]) -> str:
-        # System messages may carry retrieved context as a JSON blob or text.
-        out: list[str] = []
-        for m in messages:
-            content = m.get("content")
-            role = m.get("role")
-            if role == "system" and isinstance(content, str) and content.strip():
-                out.append(content)
-        return "\n\n".join(out)
-
-    @staticmethod
-    def _compose_answer(question: str, context_blob: str, joined: str) -> str:
-        lines: list[str] = []
-
-        # Try to surface numbers from the provided context so answers are
-        # grounded even in stub mode.
-        numbers = re.findall(r"[-+]?\d[\d,]*\.?\d*", context_blob)
-        snippet = (context_blob[:240] + "…") if len(context_blob) > 240 else context_blob
-
-        lines.append(f"**Answer (offline stub)**: based on your question "
-                     f"\"{question}\":")
-        lines.append("")
-        if snippet:
-            lines.append("• " + snippet.strip().splitlines()[0][:200] if snippet else "")
-        if numbers:
-            uniq = list(dict.fromkeys(numbers))[:5]
-            lines.append("• Figures mentioned in retrieved context: "
-                         + ", ".join(uniq))
-        lines.append("")
-        lines.append("_Note: running in offline stub mode. Set OPENAI_API_KEY "
-                     "to use GPT-4o-mini for real generation._")
-        lines.append("")
-        lines.append("**Sources**")
-        lines.append("- [1] (citation placeholder — see retrieved chunks)")
-        return "\n".join(lines)
-
 
 # ---------------------------------------------------------------------------
 # OpenAI

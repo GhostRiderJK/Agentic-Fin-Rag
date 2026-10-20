@@ -36,6 +36,7 @@ _CONFIG_ENV_VARS = (
     "FALLBACK_CHAIN",
     "ALLOWED_PROVIDERS",
     "JWT_SECRET",
+    "RETRIEVAL_PAGE_QUOTA",
 )
 
 STRONG_SECRET = "x" * 40
@@ -209,6 +210,29 @@ def test_embedding_dim_prefers_the_short_name(make_settings):
 
 def test_embedding_dim_accepts_the_plural_legacy_name(make_settings):
     assert make_settings(EMBEDDINGS_DIM="512").embeddings_dim == 512
+
+
+# -- page diversity quota ---------------------------------------------------
+
+
+def test_page_quota_is_disabled_by_default(make_settings):
+    assert make_settings().retrieval_page_quota == 0
+
+
+@pytest.mark.parametrize("value", ["0", "1", "2"])
+def test_supported_page_quota_values_are_accepted(make_settings, value: str):
+    assert make_settings(RETRIEVAL_PAGE_QUOTA=value).retrieval_page_quota == int(value)
+
+
+@pytest.mark.parametrize("value", ["-1", "3", "10"])
+def test_out_of_range_page_quota_is_rejected(make_settings, value: str):
+    with pytest.raises(ValidationError, match="RETRIEVAL_PAGE_QUOTA"):
+        make_settings(RETRIEVAL_PAGE_QUOTA=value)
+
+
+def test_non_numeric_page_quota_is_rejected(make_settings):
+    with pytest.raises(ValidationError, match="retrieval_page_quota"):
+        make_settings(RETRIEVAL_PAGE_QUOTA="abc")
 
 
 # -- precedence -------------------------------------------------------------

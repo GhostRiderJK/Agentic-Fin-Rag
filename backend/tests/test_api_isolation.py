@@ -30,7 +30,6 @@ from sqlalchemy import select
 from app.db.base import db_scope, get_sessionmaker, init_db
 from app.db.models import (
     Conversation,
-    Document,
     EvalRun,
     Job,
     JobStatus,
@@ -39,10 +38,14 @@ from app.db.models import (
     Tenant,
     User,
 )
+from app.db.mongodb.repositories import DocumentRepository
+from app.db.mongodb.runtime import run_sync
+from app.db.mongodb.tenant_context import TenantContext
+from mongo_support import app_db  # noqa: F401  (fixture used by name)
 
 
 @pytest.fixture()
-def client():
+def client(app_db):  # noqa: F811 - documents live in the throwaway database
     init_db()
     from app.main import app
 
@@ -106,22 +109,30 @@ def actors(client):
 def seeded(actors):
     """Give each tenant a document, conversation, message and job.
 
-    Seeded through the ORM, not the API: the point is to have foreign rows to
-    reach for, and doing it through routes would test the same code path twice.
+    Seeded through the ORM and the repository, not the API: the point is to
+    have foreign rows to reach for, and doing it through routes would test the
+    same code path twice.
     """
     out: dict[str, dict[str, str]] = {}
     for label, actor in (("A", actors[0]), ("B", actors[1])):
         suffix = _tag()
+        doc = run_sync(DocumentRepository().insert_one(
+            TenantContext(tenant_id=actor.tenant_id),
+            {
+                "workspace_id": actor.workspace_id,
+                "title": f"Annual Report {label}",
+                "filename": f"ar-{label}-{suffix}.txt",
+                "doc_type": "annual_report",
+                "company": f"COMPANY{label}",
+                "ticker": f"CO{label}",
+                "year": 2025,
+                "quarter": "",
+                "section": "",
+                "status": "active",
+                "parse_meta": {},
+            },
+        ))
         with db_scope() as db:
-            doc = Document(
-                workspace_id=actor.workspace_id,
-                title=f"Annual Report {label}",
-                filename=f"ar-{label}-{suffix}.txt",
-                company=f"COMPANY{label}",
-                year=2025,
-            )
-            db.add(doc)
-            db.flush()
             conv = Conversation(
                 workspace_id=actor.workspace_id,
                 user_id=actor.user_id,
@@ -145,7 +156,8 @@ def seeded(actors):
             db.add(job)
             db.flush()
             out[label] = {
-                "document_id": doc.id,
+                "document_id": doc["id"],
+                "tenant_id": actor.tenant_id,
                 "conversation_id": conv.id,
                 "message_id": msg.id,
                 "job_id": job.id,
@@ -169,6 +181,18 @@ def _snapshot(obj_type, obj_id: str) -> dict | None:
         return {c.name: getattr(row, c.name) for c in row.__table__.columns}
     finally:
         db.close()
+
+
+def _document_snapshot(seeded: dict, label: str) -> dict | None:
+    """The Mongo equivalent of :func:`_snapshot` for a document row.
+
+    Read with the owning tenant's own context, so a leak would show up as the
+    row changing rather than as a scoping accident in the reader.
+    """
+    return run_sync(DocumentRepository().get_by_id(
+        TenantContext(tenant_id=seeded[label]["tenant_id"]),
+        seeded[label]["document_id"],
+    ))
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +235,7 @@ class TestDocumentRoutes:
             headers=actors[0].headers,
         )
         assert r.status_code == 404
-        assert _snapshot(Document, seeded["B"]["document_id"])["title"] == "Annual Report B"
+        assert _document_snapshot(seeded, "B")["title"] == "Annual Report B"
 
     def test_delete_cannot_reach_a_foreign_document(self, client, actors, seeded):
         r = client.delete(
@@ -220,7 +244,7 @@ class TestDocumentRoutes:
             headers=actors[0].headers,
         )
         assert r.status_code == 404
-        assert _snapshot(Document, seeded["B"]["document_id"]) is not None
+        assert _document_snapshot(seeded, "B") is not None
 
     def test_upload_to_a_foreign_workspace_is_rejected_before_writing(
         self, client, actors
@@ -232,11 +256,13 @@ class TestDocumentRoutes:
             files={"file": ("x.txt", b"ACME revenue was $1 in 2025.", "text/plain")},
         )
         assert r.status_code == 404
-        with db_scope() as db:
-            from app.db.models import Workspace
-
-            ws = db.get(Workspace, actors[1].workspace_id)
-            assert [d.id for d in ws.documents] == []
+        # Read with tenant B's own context: the workspace is empty because
+        # nothing was written, not because the reader was scoped away.
+        rows = run_sync(DocumentRepository().list_for_workspace(
+            TenantContext(tenant_id=actors[1].tenant_id),
+            actors[1].workspace_id,
+        ))
+        assert rows == []
 
     def test_own_document_is_patchable(self, client, actors, seeded):
         r = client.patch(
@@ -370,6 +396,27 @@ class TestAdminRoutes:
         )
         assert r.status_code == 404
 
+    def test_eval_suites_requires_credentials(self, client):
+        assert client.get("/admin/eval/suites").status_code == 401
+
+    def test_eval_suites_are_addressed_by_name(self, client, actors):
+        r = client.get("/admin/eval/suites", headers=actors[0].headers)
+        assert r.status_code == 200
+        assert {"id": "packaged", "packaged": True, "n_items": 7} in r.json()
+
+    def test_eval_suite_name_cannot_address_a_file_outside_its_directory(
+        self, client, actors
+    ):
+        """The loader reads whatever path it is given, so the route must not
+        accept one — a suite is a name inside the suites directory or nothing."""
+        for hostile in ["../../app/.env", "a/b", "C:/Windows/win.ini"]:
+            r = client.post(
+                "/admin/eval/run",
+                json={"workspace_id": actors[0].workspace_id, "suite": hostile},
+                headers=actors[0].headers,
+            )
+            assert r.status_code == 422, (hostile, r.status_code, r.text)
+
     @pytest.mark.xfail(
         reason=(
             "eval_runs has no tenant column in the SQL schema, so "
@@ -387,34 +434,42 @@ class TestAdminRoutes:
         assert r.status_code == 200
         assert suite not in {row["suite"] for row in r.json()}
 
-    @pytest.mark.xfail(
-        reason=(
-            "POST /admin/eval/run reports the newest eval_runs row without a "
-            "tenant filter (app/api/admin.py:49), so a tenant can be handed "
-            "another tenant's run id. Closed by item (f)."
-        ),
-        strict=True,
-    )
-    def test_eval_run_reports_its_own_run_not_the_newest_globally(
-        self, client, actors, seeded
-    ):
+    def test_eval_run_is_queued_and_names_no_run_row(self, client, actors, seeded):
+        """POST /admin/eval/run used to answer with the newest eval_runs row
+        anywhere in the database, which handed tenant A another tenant's run id.
+
+        The route now only queues a job, so there is no run row in its response
+        to leak. The queue is drained here because the worker writes to this
+        test's database and must not outlive it.
+        """
+        from app.jobs.queue import wait_for_jobs
+
         with db_scope() as db:
             foreign = EvalRun(
                 suite=f"tenant-B-{seeded['B']['suffix']}",
                 n_items=0,
-                # newest row wins in the route's unordered-by-tenant query
                 created_at=datetime.now(timezone.utc) + timedelta(days=365),
             )
             db.add(foreign)
             db.flush()
             foreign_id = foreign.id
+
         r = client.post(
             "/admin/eval/run",
             json={"workspace_id": actors[0].workspace_id},
             headers=actors[0].headers,
         )
-        assert r.status_code == 200
-        assert r.json()["id"] != foreign_id
+        assert r.status_code == 202, r.text
+        body = r.json()
+        assert {"job_id", "status", "suite", "workspace_id"} == set(body)
+        assert body["job_id"] != foreign_id
+
+        wait_for_jobs(timeout=180)
+        with db_scope() as db:
+            job = db.get(Job, body["job_id"])
+            assert job.kind == "eval"
+            assert job.status == JobStatus.succeeded, job.error
+            assert job.result["metrics"], job.result
 
 
 # ---------------------------------------------------------------------------
@@ -636,8 +691,11 @@ COVERAGE: dict = {
                       "test_job_list_filter_cannot_widen_scope",
     ("GET", "/jobs/{job_id}"): "test_foreign_job_detail_is_not_found",
     ("POST", "/admin/eval/run"): "test_eval_in_a_foreign_workspace_is_not_found / "
-                                 "test_eval_run_reports_its_own_run_not_the_newest_globally",
+                                 "test_eval_suite_name_cannot_address_a_file_outside_its_directory / "
+                                 "test_eval_run_is_queued_and_names_no_run_row",
     ("GET", "/admin/eval/runs"): "test_eval_run_list_excludes_foreign_runs",
+    ("GET", "/admin/eval/suites"): "test_eval_suites_requires_credentials / "
+                                   "test_eval_suites_are_addressed_by_name",
 }
 
 #: Routes that carry no tenant at all.
