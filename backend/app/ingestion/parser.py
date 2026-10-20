@@ -10,6 +10,7 @@ The output is a ``ParsedDocument`` — a list of pages, each with text + tables
 
 from __future__ import annotations
 
+import hashlib
 import io
 import re
 from dataclasses import dataclass, field
@@ -19,6 +20,23 @@ from app.core.errors import ValidationError
 from app.core.logging import get_logger
 
 log = get_logger(__name__)
+
+# Bump when the extraction contract (ParsedPage/TableExtract semantics) changes.
+PARSER_CONTRACT_VERSION = 1
+
+
+def extractor_fingerprint(source_format: str,
+                          pdf_dedupe: bool | None = None) -> str:
+    """Stable id of the extractor configuration that produced a document.
+
+    Chunk text and vectors are only comparable across documents built with the
+    same extractor settings; a reindex guard must compare these fingerprints
+    before trusting retrieval metrics from a stored corpus.
+    """
+    material = f"{source_format}|v{PARSER_CONTRACT_VERSION}"
+    if pdf_dedupe is not None:
+        material += f"|dedupe={int(pdf_dedupe)}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
 
 
 @dataclass
@@ -43,6 +61,8 @@ class ParsedDocument:
     tables: list[TableExtract]
     needs_ocr: bool
     source_format: str
+    deduped_pages: int = 0
+    extractor_fingerprint: str = ""
 
     def page_text(self) -> str:
         return "\n\n".join(p.text for p in self.pages)
@@ -85,6 +105,15 @@ def _table_to_markdown(rows: list[list[str]]) -> str:
     return "\n".join(out)
 
 
+def _pdfplumber_dedupe_enabled() -> bool:
+    try:
+        from app.core.config import get_settings
+        return bool(get_settings().pdfplumber_dedupe)
+    except Exception as exc:  # pragma: no cover - settings unavailable
+        log.debug("dedupe setting unavailable (%s); baseline extraction", exc)
+        return False
+
+
 def _parse_pdf(p: Path) -> ParsedDocument:
     try:
         import pdfplumber
@@ -94,11 +123,27 @@ def _parse_pdf(p: Path) -> ParsedDocument:
             "pip install pdfplumber"
         ) from e
 
+    dedupe_enabled = _pdfplumber_dedupe_enabled()
     pages: list[ParsedPage] = []
     all_tables: list[TableExtract] = []
     total_text = ""
+    deduped_pages = 0
     with pdfplumber.open(str(p)) as pdf:
-        for i, page in enumerate(pdf.pages, start=1):
+        for i, raw_page in enumerate(pdf.pages, start=1):
+            # Some corpora ship a doubled glyph layer ("about" -> "AAbboouutt",
+            # evidence in reports/pif_doubled_text_evidence_*.md). Use the
+            # deduped page only when dedupe_chars() actually collapses a glyph,
+            # so clean pages are byte-for-byte the baseline path. Mirroring
+            # the library's real collapse rule (upright/text/font/size groups
+            # chained within a 1pt tolerance) is not reproducible by an
+            # external predicate: a corpus probe over all 157 PIF pages found
+            # 7 pages where an approximate gate missed a real collapse.
+            page = raw_page
+            if dedupe_enabled:
+                candidate = raw_page.dedupe_chars()
+                if len(candidate.chars) < len(raw_page.chars):
+                    page = candidate
+                    deduped_pages += 1
             text = page.extract_text() or ""
             tables_md: list[TableExtract] = []
             try:
@@ -131,6 +176,8 @@ def _parse_pdf(p: Path) -> ParsedDocument:
         tables=all_tables,
         needs_ocr=needs_ocr,
         source_format="pdf",
+        deduped_pages=deduped_pages,
+        extractor_fingerprint=extractor_fingerprint("pdf", dedupe_enabled),
     )
 
 
@@ -234,6 +281,7 @@ def _parse_docx(p: Path) -> ParsedDocument:
         tables=tables,
         needs_ocr=False,
         source_format="docx",
+        extractor_fingerprint=extractor_fingerprint("docx"),
     )
 
 
@@ -266,6 +314,7 @@ def _parse_html(content: str) -> ParsedDocument:
         tables=tables,
         needs_ocr=False,
         source_format="html",
+        extractor_fingerprint=extractor_fingerprint("html"),
     )
 
 
@@ -282,6 +331,7 @@ def _parse_text(content: str) -> ParsedDocument:
         tables=[],
         needs_ocr=False,
         source_format="txt",
+        extractor_fingerprint=extractor_fingerprint("txt"),
     )
 
 
@@ -310,6 +360,8 @@ def parse_bytes(data: bytes, *, filename: str, mime_type: str | None = None) -> 
 __all__ = [
     "parse_file",
     "parse_bytes",
+    "extractor_fingerprint",
+    "PARSER_CONTRACT_VERSION",
     "ParsedDocument",
     "ParsedPage",
     "TableExtract",

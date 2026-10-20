@@ -234,6 +234,8 @@ def ingest_document(
                 "needs_ocr": parsed.needs_ocr,
                 "n_pages": len(parsed.pages),
                 "n_tables": len(parsed.tables),
+                "deduped_pages": parsed.deduped_pages,
+                "extractor_fingerprint": parsed.extractor_fingerprint,
             },
         },
         doc_id=document_id,

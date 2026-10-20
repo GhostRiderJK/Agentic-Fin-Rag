@@ -187,6 +187,19 @@ class Settings(BaseSettings):
         ),
     )
 
+    # Extraction
+    pdfplumber_dedupe: bool = Field(
+        default=False,
+        description=(
+            "Drop duplicate glyph copies from the PDF char layer (pdfplumber "
+            "dedupe_chars) before reading page text and tables. Some corpora "
+            "ship a doubled text layer (PIF annual reports). Only pages that "
+            "actually show position duplicates are touched. Changing this "
+            "changes extracted text, so a corpus must be reindexed when the "
+            "setting flips; never flip it together with a retrieval knob."
+        ),
+    )
+
     # Auth
     jwt_secret: str = _DEFAULT_JWT_SECRET
     jwt_alg: str = "HS256"

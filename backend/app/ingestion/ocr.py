@@ -9,7 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.core.logging import get_logger
-from app.ingestion.parser import ParsedDocument, ParsedPage, TableExtract
+from app.ingestion.parser import (ParsedDocument, ParsedPage, TableExtract,
+                                  extractor_fingerprint)
 
 log = get_logger(__name__)
 
@@ -41,9 +42,11 @@ def ocr_pdf(path: str | Path) -> ParsedDocument:
         tables=[],
         needs_ocr=False,
         source_format="pdf-ocr",
+        extractor_fingerprint=extractor_fingerprint("pdf-ocr"),
     )
 
 
 def _empty() -> ParsedDocument:
     return ParsedDocument(pages=[], raw_text="", tables=[], needs_ocr=False,
-                          source_format="pdf-ocr")
+                          source_format="pdf-ocr",
+                          extractor_fingerprint=extractor_fingerprint("pdf-ocr"))
