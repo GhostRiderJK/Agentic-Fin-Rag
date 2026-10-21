@@ -20,7 +20,7 @@ from app.api.schemas import (
     WorkspaceOut,
 )
 from app.core.config import get_settings
-from app.core.errors import NotFoundError, ValidationError
+from app.core.errors import NotFoundError, ProviderError, ValidationError
 from app.core.security import CurrentUser, can_write
 from app.db.base import get_db
 from app.db.enums import DocumentStatus, DocumentType
@@ -180,6 +180,18 @@ def update_document(
     fields = payload.model_dump(exclude_unset=True, mode="json")
     if fields:
         run_sync(_documents.update_by_id(ctx, document_id, fields))
+        new_company = (fields.get("company") or "").strip()
+        if new_company:
+            # Extracted figures carry the issuer's name so the structured-data
+            # tools can find them by company. They are written from the
+            # document's metadata at ingest time, so correcting that metadata
+            # has to carry over — otherwise the rows stay unreachable and the
+            # patch looks accepted but changes nothing. Fiscal period is *not*
+            # copied: a 2024 report legitimately holds 2023 comparatives.
+            # A blank is not copied either: it would leave every figure of this
+            # document unreachable under a name nobody can query.
+            run_sync(_financials.update_many(
+                ctx, {"document_id": document_id}, {"company": new_company}))
     return run_sync(_documents.get_by_id(ctx, document_id))
 
 
@@ -197,10 +209,20 @@ def delete_document(
     # nothing searchable points at the document, then the document itself.
     # The extracted figures stay, provenance cleared (what the SQL
     # ON DELETE SET NULL did).
+    #
+    # A failed vector delete aborts here. Swallowing it and carrying on would
+    # drop the Mongo rows that are the only record of which vectors belonged to
+    # this document, leaving live vectors behind with nothing left to delete
+    # them and reporting success to the caller.
     try:
         get_vectordb().delete_by_document(document_id)
-    except Exception:
-        pass
+    except Exception as exc:
+        raise ProviderError(
+            f"document {document_id} is still in the vector store "
+            f"({type(exc).__name__}: {exc}); nothing was deleted, retry once "
+            "the vector store is reachable",
+            provider="qdrant",
+        ) from exc
     run_sync(_chunks.delete_for_document(ctx, document_id))
     run_sync(_financials.detach_document(ctx, document_id))
     run_sync(_documents.delete_by_id(ctx, document_id))

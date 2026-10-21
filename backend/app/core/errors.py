@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Request, status
@@ -93,12 +94,38 @@ class TenantIsolationError(AppError):
     status_code = 403  # Forbidden
 
 
+_SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)\b(api[\s_-]?key|secret[\s_-]?key|access[\s_-]?token|refresh[\s_-]?token|"
+    r"authorization|bearer|password|token|secret)\b(\s*[:=]\s*)(\S[^\n,;]*)")
+_BEARING_TOKEN_RE = re.compile(r"\b(?:sk|pk|ghp|xox[baprs]-[a-z])[-_][A-Za-z0-9_-]{8,}")
+
+
+def without_secrets(text: str) -> str:
+    """Scrub credential material out of an error message before it is returned.
+
+    Provider failures quote the upstream response, and a gateway that echoes the
+    request it received can put the caller's key into that text. That text is
+    then handed to whoever the error is shown to, so the outbound path scrubs it
+    instead of relying on providers to have been written carefully. Anything that
+    *stores* an error for later display (job rows, eval item rows) has to scrub
+    at write time too — those readers do not go through the exception handlers.
+    """
+    scrubbed = _SECRET_ASSIGNMENT_RE.sub(
+        lambda m: f"{m.group(1)}{m.group(2)}[redacted]", text)
+    return _BEARING_TOKEN_RE.sub("[redacted]", scrubbed)
+
+
 def install_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _handle_app_error(_: Request, exc: AppError) -> JSONResponse:
         return JSONResponse(
             status_code=exc.status_code,
-            content={"error": exc.code, "message": exc.message, "details": exc.details},
+            content={
+                "error": exc.code,
+                "message": without_secrets(exc.message),
+                "details": {k: without_secrets(v) if isinstance(v, str) else v
+                             for k, v in exc.details.items()},
+            },
         )
 
     @app.exception_handler(Exception)

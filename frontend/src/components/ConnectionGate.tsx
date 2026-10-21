@@ -4,6 +4,10 @@ import { useState } from "react";
 import { useApp } from "./AppShell";
 import { api } from "@/lib/api";
 
+// A live tenant key must not live in source: git history keeps every value it
+// has ever held. Opt in per machine with NEXT_PUBLIC_DEMO_API_KEY.
+const DEMO_API_KEY = process.env.NEXT_PUBLIC_DEMO_API_KEY || "";
+
 /** Inline panel shown when the user isn't connected. Lets them paste an
  * API key (or bootstrap a tenant+user) and pick a workspace. */
 export function ConnectionGate({ onConnected }: { onConnected?: () => void }) {
@@ -82,9 +86,14 @@ export function ConnectionGate({ onConnected }: { onConnected?: () => void }) {
                 {" "}in the backend directory:
               </div>
               <pre className="bg-slate-900 text-slate-100 text-[11px] p-2 rounded overflow-x-auto">{`$ python -m app.cli seed
-    email   : analyst@demo.local
-    api_key : 090e602fa8c424961c9bdfca06eb3b1df97860c50abf830a`}</pre>
-              <div>Copy the api_key value and paste it below.</div>
+    email   : analyst@demo.local${
+      DEMO_API_KEY ? `\n    api_key : ${DEMO_API_KEY}` : ""
+    }`}</pre>
+              <div>
+                {DEMO_API_KEY
+                  ? "Copy the api_key value and paste it below."
+                  : "The command prints the tenant's api_key; copy it and paste it below. Set NEXT_PUBLIC_DEMO_API_KEY to show it here."}
+              </div>
             </div>
             <input
               type="password"

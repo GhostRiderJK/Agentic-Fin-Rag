@@ -2,13 +2,31 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Literal
+from datetime import datetime, timezone
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PlainSerializer
 
 from app.db.enums import DocumentStatus, DocumentType
 from app.db.models import Role
+
+
+def _utc_iso(value: datetime) -> str:
+    """Render an instant as an explicit UTC offset.
+
+    Storage hands back naive datetimes in UTC: SQLite and MySQL drop the
+    offset on the round trip, and pymongo always returns naive UTC. Serialised
+    bare, that string is a *local* time per ECMAScript, so the browser renders
+    every timestamp shifted by the viewer's offset.
+    """
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+# Only applied when a model is dumped to JSON, so internal ``model_dump()``
+# callers still get real datetime objects.
+UtcDateTime = Annotated[datetime, PlainSerializer(_utc_iso, when_used="json")]
 
 # ---- Auth --------------------------------------------------------------------
 
@@ -63,7 +81,7 @@ class WorkspaceOut(BaseModel):
     id: str
     name: str
     description: str
-    created_at: datetime
+    created_at: UtcDateTime
 
 
 # ---- Documents ---------------------------------------------------------------
@@ -82,7 +100,7 @@ class DocumentOut(BaseModel):
     section: str
     status: DocumentStatus
     parse_meta: dict
-    created_at: datetime
+    created_at: UtcDateTime
 
 
 class DocumentUpdate(BaseModel):
@@ -154,8 +172,8 @@ class ConversationOut(BaseModel):
     id: str
     workspace_id: str
     title: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
 
 class MessageOut(BaseModel):
@@ -163,7 +181,7 @@ class MessageOut(BaseModel):
     role: str
     content: str
     citations: list[Any]
-    created_at: datetime
+    created_at: UtcDateTime
     feedback: int | None
 
 
@@ -195,9 +213,9 @@ class JobOut(BaseModel):
     status: str
     progress: float
     error: str
-    created_at: datetime
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
+    created_at: UtcDateTime
+    started_at: UtcDateTime | None = None
+    finished_at: UtcDateTime | None = None
     result: dict = {}
 
 
@@ -229,7 +247,7 @@ class EvalRunOut(BaseModel):
     suite: str
     n_items: int
     metrics: dict
-    created_at: datetime
+    created_at: UtcDateTime
 
 
 class FeedbackIn(BaseModel):

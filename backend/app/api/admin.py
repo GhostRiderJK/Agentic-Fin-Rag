@@ -13,7 +13,8 @@ from app.core.errors import NotFoundError
 from app.core.logging import get_logger
 from app.core.security import CurrentUser, can_admin
 from app.db.base import get_db
-from app.db.models import EvalRun, Workspace
+from app.db.models import EvalItem, EvalRun, Workspace
+from app.evaluation.harness import reconcile_run_metrics
 from app.evaluation.suites import list_suites, resolve
 from app.jobs.queue import enqueue_eval
 
@@ -62,5 +63,29 @@ def run_eval(
 @router.get("/eval/runs", response_model=list[EvalRunOut])
 def list_eval_runs(db: Annotated[Session, Depends(get_db)], user: CurrentUser):
     can_admin(user)
-    return list(db.scalars(select(EvalRun).order_by(EvalRun.created_at.desc())
+    # Scoped by tenant, like every other list an admin can reach. Runs written
+    # before eval_runs carried a tenant have no owner to match, so they stay
+    # out of every list rather than being shown to everyone.
+    runs = list(db.scalars(select(EvalRun)
+                           .where(EvalRun.tenant_id == user.tenant_id)
+                           .order_by(EvalRun.created_at.desc())
                            .limit(50)).all())
+    if not runs:
+        return []
+    # One pass over the item rows: runs written by the older harness have to be
+    # re-read before they can be shown, because their stored averages include
+    # requests that failed instead of answering.
+    item_rows: dict[str, list[tuple[str, dict]]] = {}
+    for run_id, actual, metrics in db.execute(
+        select(EvalItem.run_id, EvalItem.actual, EvalItem.metrics)
+        .where(EvalItem.run_id.in_([r.id for r in runs]))
+    ).all():
+        item_rows.setdefault(run_id, []).append((actual, metrics))
+    return [
+        EvalRunOut(
+            id=r.id, suite=r.suite, n_items=r.n_items,
+            metrics=reconcile_run_metrics(r.metrics or {}, r.n_items,
+                                          item_rows.get(r.id, [])),
+            created_at=r.created_at,
+        ) for r in runs
+    ]

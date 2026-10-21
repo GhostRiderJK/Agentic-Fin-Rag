@@ -5,7 +5,8 @@ import { useApp } from "@/components/AppShell";
 import { ConnectionGate } from "@/components/ConnectionGate";
 import { WorkspacePicker } from "@/components/WorkspacePicker";
 import { Answer } from "@/components/Answer";
-import { api, type ChatResponse } from "@/lib/api";
+import { api, type ChatResponse, type Document } from "@/lib/api";
+import { chatSuggestions, facetsFromDocuments } from "@/lib/workspace-facets";
 
 interface Turn {
   id: string;
@@ -21,11 +22,24 @@ export default function ChatPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [docs, setDocs] = useState<Document[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [turns]);
+
+  useEffect(() => {
+    if (!apiKey || !workspaceId) {
+      setDocs([]);
+      return;
+    }
+    let live = true;
+    api.listDocuments(apiKey, workspaceId)
+      .then((d) => { if (live) setDocs(d); })
+      .catch(() => { if (live) setDocs([]); });
+    return () => { live = false; };
+  }, [apiKey, workspaceId]);
 
   if (!apiKey) return <ConnectionGate />;
 
@@ -55,12 +69,7 @@ export default function ChatPage() {
     }
   }
 
-  const suggestions = [
-    "What was ACME's net income in fiscal year 2025?",
-    "What are the main risks ACME faces?",
-    "Compare ACME's gross margin 2024 vs 2025",
-    "What is driving ACME's Services growth?",
-  ];
+  const suggestions = chatSuggestions(facetsFromDocuments(docs));
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-4 grid grid-cols-12 gap-4 h-[calc(100vh-3.5rem)]">
@@ -68,6 +77,11 @@ export default function ChatPage() {
         <WorkspacePicker />
         <div className="bg-white border rounded-lg p-3">
           <div className="text-xs font-medium text-slate-500 mb-2">Try asking</div>
+          {suggestions.length === 0 ? (
+            <div className="text-xs text-slate-500">
+              Question ideas appear once this workspace has documents.
+            </div>
+          ) : (
           <ul className="space-y-1">
             {suggestions.map((s) => (
               <li key={s}>
@@ -80,6 +94,7 @@ export default function ChatPage() {
               </li>
             ))}
           </ul>
+          )}
         </div>
         {!workspaceId && (
           <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">

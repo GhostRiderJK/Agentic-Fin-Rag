@@ -34,7 +34,11 @@ from app.ingestion.metadata import DocMetadata, infer_metadata
 from app.ingestion.ocr import ocr_pdf
 from app.ingestion.parser import ParsedDocument as ParsedDocument
 from app.ingestion.parser import parse_file
-from app.ingestion.tables import extract_financials
+from app.ingestion.tables import (
+    detect_unit_and_currency,
+    extract_financials,
+    extract_financials_from_pages,
+)
 from app.providers import get_embeddings, get_vectordb
 
 log = get_logger(__name__)
@@ -101,12 +105,27 @@ def ingest_document(
     # 2. Clean text
     cleaned_pages = [clean_text(pg.text) for pg in parsed.pages]
     cleaned_text = "\n\n".join(cleaned_pages)
-    # 3. Extract structured financials from tables
-    financials = extract_financials(
-        parsed.tables,
+    # 3. Extract structured financials. A PDF's numbers are read from word
+    # positions — its extracted grid has no reliable column geometry, so the
+    # period a value belongs to is decided by horizontal position. Sources
+    # without positioned words (DOCX, HTML, Markdown, an OCR fallback) keep the
+    # cell reader, where column index does mean column.
+    # Statements state their currency once, in a header line. Honour it instead
+    # of filing every number as USD.
+    doc_currency = detect_unit_and_currency(parsed.page_text())[1] or "USD"
+    financials = extract_financials_from_pages(
+        parsed.pages,
         company=hint_company,
         ticker=hint_ticker,
-    )
+        currency=doc_currency,
+    ) if any(pg.words for pg in parsed.pages) else []
+    if not financials:
+        financials = extract_financials(
+            parsed.tables,
+            company=hint_company,
+            ticker=hint_ticker,
+            currency=doc_currency,
+        )
 
     # 4. Metadata
     meta = infer_metadata(
@@ -235,6 +254,8 @@ def ingest_document(
                 "n_pages": len(parsed.pages),
                 "n_tables": len(parsed.tables),
                 "deduped_pages": parsed.deduped_pages,
+                "text_table_pages": parsed.text_table_pages,
+                "n_financials": len(financials),
                 "extractor_fingerprint": parsed.extractor_fingerprint,
             },
         },
@@ -415,7 +436,7 @@ def _embed_and_persist(
 ) -> list[ChunkRecord]:
     embeddings = get_embeddings()
     vdb = get_vectordb()
-    vdb.ensure_collection(getattr(embeddings, "dim", 1536))
+    vdb.ensure_collection(embeddings.dim)
 
     points = []
     chunk_docs: list[dict] = []
@@ -449,6 +470,7 @@ def _embed_and_persist(
             child_id = new_id()
             point_id = new_id()
             payload = {
+                "tenant_id": ctx.tenant_id,
                 "workspace_id": workspace_id,
                 "document_id": document_id,
                 "chunk_id": child_id,

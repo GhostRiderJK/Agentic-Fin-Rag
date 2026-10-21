@@ -270,6 +270,40 @@ def test_eval_metrics_numeric_accuracy():
     assert m["faithfulness"] == 1.0
 
 
+def test_eval_numeric_accuracy_accepts_unit_qualified_gold():
+    """PIF gold entries are phrases like "SAR 3,424 billion", not bare numbers.
+
+    Comparing the phrase against the answer's numeric tokens scored a verbatim
+    correct answer as 0.0, so the metric silently understated every run.
+    """
+    from app.evaluation.harness import score_item
+
+    def score(actual: str, expected_numbers: list[str]) -> float:
+        return score_item(
+            question="What were PIF's total assets under management?",
+            expected="AUM reached SAR 3,424 billion, up from SAR 2,871 billion.",
+            actual=actual, expected_numbers=expected_numbers,
+            expected_keywords=["aum"], n_retrieved=5,
+            verification_outcome="supported")["numeric_accuracy"]
+
+    answer = ("AuM was SAR 3,424 billion at year-end 2024, up from "
+              "SAR 2,871 billion in 2023 [1][3].")
+    phrases = ["SAR 3,424 billion", "SAR 2,871 billion"]
+    assert score(answer, phrases) == 1.0
+    # Bare-number gold keeps working exactly as before.
+    assert score(answer, ["3,424", "2,871"]) == 1.0
+    # One of two figures missing -> half credit, not zero and not full marks.
+    assert score("AuM reached SAR 3,424 billion in 2024 [1].", phrases) == 0.5
+    # A wrong figure scores zero. Units are deliberately not checked: "3,424
+    # million" satisfies a "3,424 billion" gold entry, which is a documented
+    # limit of this proxy rather than a pass.
+    assert score("AuM was SAR 4,931 billion.", phrases) == 0.0
+    # Both numbers inside one phrase must both appear.
+    assert score("Split 87% internal.", ["87% internally, 13% externally"]) == 0.0
+    assert score("Split 87% internal and 13% external.",
+                 ["87% internally, 13% externally"]) == 1.0
+
+
 def test_stub_llm_deterministic():
     from app.providers.llm import Message, StubLLM
 

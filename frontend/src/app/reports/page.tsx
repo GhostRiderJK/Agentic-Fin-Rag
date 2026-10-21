@@ -7,13 +7,22 @@ import { useApp } from "@/components/AppShell";
 import { ConnectionGate } from "@/components/ConnectionGate";
 import { WorkspacePicker } from "@/components/WorkspacePicker";
 import { api, type Job } from "@/lib/api";
+import { facetsFromDocuments, type Facets } from "@/lib/workspace-facets";
+
+const NO_FACETS: Facets = {
+  companies: [], years: [], yearsByCompany: {}, nDocuments: 0,
+};
 
 export default function ReportsPage() {
   const { apiKey, workspaceId } = useApp();
-  const [company, setCompany] = useState("ACME");
-  const [year, setYear] = useState("2025");
+  const [company, setCompany] = useState("");
+  const [year, setYear] = useState("");
   const [reportType, setReportType] = useState<"summary" | "thesis">("summary");
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [facets, setFacets] = useState<Facets>(NO_FACETS);
+  // Whether the document list actually arrived: "no documents" and "could not
+  // read the documents" are different advice.
+  const [docsRead, setDocsRead] = useState<"pending" | "ok" | "error">("pending");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [openJob, setOpenJob] = useState<Job | null>(null);
@@ -30,18 +39,50 @@ export default function ReportsPage() {
 
   useEffect(() => {
     refresh();
+  }, [apiKey, workspaceId]);
+
+  // Poll only while a report job is still running. An idle Reports tab holding
+  // an open job list used to re-request /jobs every 2s forever, which the
+  // backend logs as thousands of no-op reads per hour.
+  useEffect(() => {
+    const pending = jobs.some((j) => j.status !== "succeeded" && j.status !== "failed");
+    if (!pending) return;
     const id = setInterval(refresh, 2000);
     return () => clearInterval(id);
+  }, [jobs, apiKey, workspaceId]);
+
+  // Seed the form from what this workspace actually holds. Switching workspace
+  // must not leave the previous one's facets or advice on screen.
+  useEffect(() => {
+    if (!apiKey || !workspaceId) return;
+    let live = true;
+    setFacets(NO_FACETS);
+    setDocsRead("pending");
+    api.listDocuments(apiKey, workspaceId)
+      .then((docs) => {
+        if (!live) return;
+        const f = facetsFromDocuments(docs);
+        setFacets(f);
+        setDocsRead("ok");
+        setCompany((c) => c || f.companies[0] || "");
+        setYear((y) => y || (f.years[0] ? String(f.years[0]) : ""));
+      })
+      .catch(() => {
+        if (!live) return;
+        setFacets(NO_FACETS);
+        setDocsRead("error");
+      });
+    return () => { live = false; };
   }, [apiKey, workspaceId]);
 
   if (!apiKey) return <ConnectionGate />;
 
   async function generate() {
-    if (!apiKey || !workspaceId) return;
+    if (!apiKey || !workspaceId || !company.trim()) return;
     setBusy(true); setErr(null);
     try {
       await api.createReport(
-        apiKey, workspaceId, company, reportType,
+        apiKey, workspaceId, company.trim(), reportType,
         year ? parseInt(year, 10) : undefined,
       );
       await refresh();
@@ -59,19 +100,48 @@ export default function ReportsPage() {
         <div className="bg-white border rounded-lg p-3 space-y-2">
           <div className="text-xs font-medium text-slate-500">Generate report</div>
           <input value={company} onChange={(e) => setCompany(e.target.value)}
-            placeholder="Company" className="w-full border rounded-md px-2 py-1.5 text-sm" />
+            list="report-companies" placeholder="Company"
+            className="w-full border rounded-md px-2 py-1.5 text-sm" />
+          <datalist id="report-companies">
+            {facets.companies.map((c) => <option key={c} value={c} />)}
+          </datalist>
           <input value={year} onChange={(e) => setYear(e.target.value)}
-            placeholder="Year" className="w-full border rounded-md px-2 py-1.5 text-sm" />
+            list="report-years" placeholder="Year" inputMode="numeric"
+            className="w-full border rounded-md px-2 py-1.5 text-sm" />
+          <datalist id="report-years">
+            {facets.years.map((y) => <option key={y} value={String(y)} />)}
+          </datalist>
           <select value={reportType}
             onChange={(e) => setReportType(e.target.value as "summary" | "thesis")}
             className="w-full border rounded-md px-2 py-1.5 text-sm">
             <option value="summary">Earnings summary</option>
             <option value="thesis">Investment thesis</option>
           </select>
-          <button onClick={generate} disabled={busy || !workspaceId}
+          <button onClick={generate}
+            disabled={busy || !workspaceId || !company.trim()}
             className="w-full bg-brand-600 text-white text-sm py-1.5 rounded hover:bg-brand-700 disabled:opacity-50">
             {busy ? "Submitting…" : "Generate"}
           </button>
+          {workspaceId && docsRead === "ok" && facets.nDocuments === 0 && (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+              This workspace has no documents yet. Upload one first, otherwise
+              the report has nothing to cite.
+            </div>
+          )}
+          {workspaceId && docsRead === "ok" && facets.nDocuments > 0
+            && facets.companies.length === 0 && (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+              {facets.nDocuments} document(s) here carry no company name, so
+              there is nothing to suggest. Type the company as it should appear
+              in the report; the search still runs over the uploaded text.
+            </div>
+          )}
+          {workspaceId && docsRead === "error" && (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+              Could not read this workspace&apos;s documents, so no company or
+              year is suggested. Check the connection and reload.
+            </div>
+          )}
         </div>
       </aside>
 

@@ -101,6 +101,12 @@ export default function EvalPage() {
   const shownItems = hasLive
     ? Number(finished?.result?.n_items ?? 0)
     : latest?.n_items;
+  // A run whose requests all failed scores nothing: the backend leaves the
+  // mean_* keys out rather than averaging the error text. Say so instead of
+  // showing the "no runs yet" panel, which would read as an untouched app.
+  const nErrored = Number(
+    metrics.n_errored ?? finished?.result?.n_errored ?? 0);
+  const hasRun = hasLive || Boolean(latest);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-12 gap-4">
@@ -181,10 +187,20 @@ export default function EvalPage() {
                 );
               })}
             </div>
+            {nErrored > 0 && (
+              <div className="mt-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                {nErrored} of {shownItems} items never answered, so they are
+                excluded from the averages above. Check the model pins and the
+                gateway credentials before reading these numbers as quality.
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-white border rounded-lg p-8 text-center text-slate-500 text-sm">
-            No evaluation runs yet. Pick a suite and click “Run eval suite”.
+            {hasRun
+              ? "The recorded run scored no items — every request failed before " +
+                "answering. Nothing here is a quality number."
+              : "No evaluation runs yet. Pick a suite and click “Run eval suite”."}
           </div>
         )}
 
@@ -207,10 +223,17 @@ export default function EvalPage() {
                   <tr key={r.id} className="border-t">
                     <td className="p-2 text-xs">{new Date(r.created_at).toLocaleString()}</td>
                     <td className="p-2 text-xs">{r.suite}</td>
-                    <td className="p-2 text-xs">{r.n_items}</td>
-                    <td className="p-2 text-xs">{(r.metrics.mean_faithfulness ?? 0).toFixed(2)}</td>
-                    <td className="p-2 text-xs">{(r.metrics.mean_numeric_accuracy ?? 0).toFixed(2)}</td>
-                    <td className="p-2 text-xs">{(r.metrics.mean_citation_precision ?? 0).toFixed(2)}</td>
+                    <td className="p-2 text-xs">
+                      {r.n_items}
+                      {r.n_items > 0 && Number(r.metrics.n_scored ?? r.n_items) < r.n_items && (
+                        <span className="text-slate-400">
+                          {` (${Number(r.metrics.n_scored ?? 0)} scored)`}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-2 text-xs">{fmtMean(r.metrics.mean_faithfulness)}</td>
+                    <td className="p-2 text-xs">{fmtMean(r.metrics.mean_numeric_accuracy)}</td>
+                    <td className="p-2 text-xs">{fmtMean(r.metrics.mean_citation_precision)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -220,6 +243,13 @@ export default function EvalPage() {
       </section>
     </div>
   );
+}
+
+// A metric the run never produced must not render as 0.00: that reads as a
+// failing score, not as no score, and the whole point of the accounting fix is
+// that an unanswered request is not a measurement.
+function fmtMean(v: number | undefined) {
+  return v === undefined ? "—" : v.toFixed(2);
 }
 
 function scoreColor(v: number) {

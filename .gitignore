@@ -59,5 +59,11 @@ Thumbs.db
 # ---- Tooling artifacts ----
 .playwright-mcp/
 
+# Regenerable build output for out-of-tree verification runs (next build/dev
+# with a FINRAG_NEXT_DIST_DIR override) and pytest scratch roots.
+.next-build/
+.next-e2e/
+.pytest-*/
+
 
 test_log_*.txt

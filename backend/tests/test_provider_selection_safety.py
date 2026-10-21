@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
 from app.core.errors import ProviderError
-from app.providers import embeddings, reranker
+from app.providers import embeddings, llm, reranker
 
 
 @pytest.fixture(autouse=True)
@@ -154,7 +155,9 @@ def test_explicit_stub_providers_remain_available(monkeypatch):
     monkeypatch.setattr(
         embeddings,
         "get_settings",
-        lambda: SimpleNamespace(embeddings_provider="stub", embeddings_dim=8),
+        lambda: SimpleNamespace(embeddings_provider="stub", embeddings_dim=8,
+                                qdrant_mode="local", qdrant_path="./qdrant",
+                                qdrant_collection="chunks"),
     )
     monkeypatch.setattr(
         reranker,
@@ -164,6 +167,19 @@ def test_explicit_stub_providers_remain_available(monkeypatch):
 
     assert embeddings.get_embeddings().name == "stub"
     assert reranker.get_reranker().name == "stub"
+
+
+def test_stub_embeddings_are_refused_against_a_remote_store(monkeypatch):
+    # Stub vectors in a shared collection are invisible to every real model,
+    # and the damage only shows up later as retrieval that returns nothing.
+    monkeypatch.setattr(
+        embeddings,
+        "get_settings",
+        lambda: SimpleNamespace(embeddings_provider="stub", embeddings_dim=8,
+                                qdrant_mode="remote", qdrant_collection="chunks"),
+    )
+    with pytest.raises(ProviderError, match="cannot write to a remote Qdrant"):
+        embeddings.get_embeddings()
 
 
 def test_cohere_provider_is_selected_when_explicit_and_configured(monkeypatch):
@@ -178,3 +194,33 @@ def test_cohere_provider_is_selected_when_explicit_and_configured(monkeypatch):
     monkeypatch.setattr(reranker, "CohereReranker", FakeCohereReranker)
 
     assert reranker.get_reranker().name == "cohere"
+
+
+@pytest.mark.parametrize("num_ctx,expected", [(0, None), (2048, 2048)])
+def test_ollama_sends_num_ctx_only_when_configured(monkeypatch, num_ctx, expected):
+    captured: dict = {}
+
+    class RecordingClient:
+        def post(self, url, json=None):
+            captured["url"] = url
+            captured["payload"] = json
+            return SimpleNamespace(
+                raise_for_status=lambda: None,
+                json=lambda: {"message": {"content": "FINRAG_OK"}},
+            )
+
+    monkeypatch.setattr(llm, "get_settings", lambda: SimpleNamespace(
+        ollama_base_url="http://127.0.0.1:11434",
+        ollama_chat_model="llama3.2:3b",
+        ollama_num_ctx=num_ctx,
+    ))
+    monkeypatch.setattr(httpx, "Client", lambda **kwargs: RecordingClient())
+
+    result = llm.OllamaLLM().chat([{"role": "user", "content": "hi"}])
+
+    assert result.content == "FINRAG_OK"
+    assert captured["url"] == "http://127.0.0.1:11434/api/chat"
+    # The default context makes Ollama allocate the whole KV cache up front and
+    # the load dies on a small GPU, so the cap has to reach the request — and a
+    # config that leaves it unset must not send an override.
+    assert captured["payload"]["options"].get("num_ctx") == expected

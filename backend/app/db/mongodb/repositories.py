@@ -27,6 +27,33 @@ def _as_list(value: Union[Any, Sequence[Any]]) -> list:
     return [value]
 
 
+def _year_forms(value: Union[Any, Sequence[Any]]) -> list:
+    """Every BSON shape a fiscal year is stored in, for one or many years.
+
+    Documents written by the current upload route hold ``2024`` (a number) and
+    legacy rows in the same corpus hold ``"2024"`` (a string). Mongo compares
+    strictly across types, so an int-only filter loses the string rows and a
+    string-only filter the numeric ones, silently and with no error. Matching
+    both shapes is read-only: it costs one extra ``$in`` term.
+    """
+    forms: list = []
+    for item in _as_list(value):
+        for candidate in (item, _other_year_form(item)):
+            if candidate is not None and candidate not in forms:
+                forms.append(candidate)
+    return forms
+
+
+def _other_year_form(value: Any):
+    """The other of the two year representations, or None if not a year."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    if isinstance(value, str):
+        text = value.strip()
+        return int(text) if text.isdigit() else None
+    return None
+
+
 class _UnscopedRepository:
     """Minimal repository for tenant-independent collections.
 
@@ -194,7 +221,11 @@ class DocumentRepository(BaseRepository):
             ("quarter", quarter),
             ("doc_type", doc_type),
         ):
-            if value is not None and value != []:
+            if value is None or value == []:
+                continue
+            if field_name == "year":
+                query[field_name] = {"$in": _year_forms(value)}
+            else:
                 query[field_name] = {"$in": _as_list(value)}
         return await self.find_many(ctx, query)
 
@@ -216,7 +247,12 @@ class DocumentRepository(BaseRepository):
                 "year": {"$ne": None},
             },
         )
-        return sorted(v for v in values if v is not None)
+        # Legacy rows hold the year as text. Returned as stored, ``sorted``
+        # raises on a workspace that mixes int and str, and retrieval's
+        # ``plan_year in available_years`` test can never match a text year,
+        # which turns the filter off without saying so.
+        numbers = {int(text) for text in (str(v).strip() for v in values) if text.isdigit()}
+        return sorted(numbers)
 
     async def find_by_metadata(
         self,
@@ -235,7 +271,7 @@ class DocumentRepository(BaseRepository):
         if company:
             query["company"] = company
         if year is not None:
-            query["year"] = year
+            query["year"] = {"$in": _year_forms(year)}
         if quarter:
             query["quarter"] = quarter
         if doc_type:
@@ -305,28 +341,62 @@ class StructuredFinancialRepository(BaseRepository):
         fiscal_year: Optional[int] = None,
         quarter: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Rows whose company name *contains* ``company``, case-insensitively.
+        """Rows whose company name and ``company`` contain one another.
 
-        The tool-calling route passes whatever the LLM typed ("Apple Inc." for
-        a row stored as "Apple"), so this is a substring match rather than the
-        exact match :meth:`get_metric` does. The term is escaped because it is
-        interpolated into a regex.
+        The tool-calling route passes whatever the LLM typed, and neither side
+        is guaranteed to be the longer one: a row stored as "Apple" must answer
+        "Apple Inc.", and a row stored as "Apple Inc." must answer "Apple". The
+        first branch is a regex (escaped, because the term is user-supplied);
+        the second resolves stored names that sit *inside* the typed term.
+
+        Rows with no company never match the second branch — the empty string
+        is inside every term, so including it would flood every lookup.
+        Neither direction resolves an acronym: "PIF" does not find "Public
+        Investment Fund".
         """
-        query: Dict[str, Any] = {
-            "workspace_id": workspace_id,
-            "company": {"$regex": re.escape(company), "$options": "i"},
-        }
+        if not company.strip():
+            # An empty pattern matches every document in the workspace. A lookup
+            # that has lost its term returns nothing instead.
+            return []
+        scoped: Dict[str, Any] = {"workspace_id": workspace_id}
         if metric:
-            query["metric"] = metric
+            scoped["metric"] = metric
         if fiscal_year is not None:
-            query["fiscal_year"] = fiscal_year
+            scoped["fiscal_year"] = {"$in": _year_forms(fiscal_year)}
         if quarter:
-            query["quarter"] = quarter
+            scoped["quarter"] = quarter
+
+        branches: List[Dict[str, Any]] = [
+            {"company": {"$regex": re.escape(company), "$options": "i"}}]
+        aliases = await self._names_inside(ctx, scoped, company.lower())
+        if aliases:
+            branches.append({"company": {"$in": aliases}})
+        query: Dict[str, Any] = {**scoped, "$or": branches}
         return await self.find_many(
             ctx,
             query,
             sort=[("fiscal_year", DESCENDING), ("quarter", DESCENDING)],
         )
+
+    async def _names_inside(
+        self, ctx: TenantContext, scoped: Dict[str, Any], needle: str
+    ) -> List[str]:
+        """Stored company names this scope holds that *needle* contains.
+
+        ``$expr`` string operators do not exist on the in-memory server these
+        queries are also tested against, so the reverse containment is decided
+        here over the scope's distinct names instead of per row. Names equal to
+        the term are left to the regex branch.
+        """
+        if not needle:
+            return []
+        self._require_ctx(ctx)
+        values = await self.collection.distinct(
+            "company",
+            {**self._prepare_query(ctx, scoped), "company": {"$nin": [None, ""]}},
+        )
+        return [v for v in values
+                if isinstance(v, str) and v.lower() != needle and v.lower() in needle]
 
     async def detach_document(self, ctx: TenantContext, document_id: str) -> int:
         """Drop the provenance pointer when a document is deleted.
@@ -353,7 +423,7 @@ class StructuredFinancialRepository(BaseRepository):
             "metric": metric,
         }
         if fiscal_year is not None:
-            query["fiscal_year"] = fiscal_year
+            query["fiscal_year"] = {"$in": _year_forms(fiscal_year)}
         if quarter:
             query["quarter"] = quarter
         if workspace_id:
@@ -377,7 +447,7 @@ class StructuredFinancialRepository(BaseRepository):
             "metric": metric,
         }
         if fiscal_year is not None:
-            query["fiscal_year"] = fiscal_year
+            query["fiscal_year"] = {"$in": _year_forms(fiscal_year)}
         return await self.find_many(ctx, query, sort=[("company", 1)])
 
     async def list_metrics(self, ctx: TenantContext, company: str) -> List[str]:

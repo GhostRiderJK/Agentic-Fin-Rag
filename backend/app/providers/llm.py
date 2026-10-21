@@ -242,10 +242,15 @@ class OpenAIChatLLM(BaseLLM):
         self._model = model or settings.openai_chat_model
 
     def chat(self, messages, *, tools=None, temperature=0.2, max_tokens=None, stop=None):
+        return self._chat_with(self._model, messages, tools=tools,
+                               temperature=temperature, max_tokens=max_tokens, stop=stop)
+
+    def _chat_with(self, model: str, messages, *, tools=None, temperature=0.2,
+                   max_tokens=None, stop=None):
         from app.core.errors import ProviderError, ProviderTransientError
 
         kwargs: dict[str, Any] = {
-            "model": self._model,
+            "model": model,
             "messages": [_clean_msg(m) for m in messages],
             "temperature": temperature,
         }
@@ -384,6 +389,32 @@ class OmnirouteLLM(OpenAIChatLLM):
         super().__init__(api_key=key, base_url=settings.omniroute_base_url,
                          model=settings.chat_model)
 
+    def chat(self, messages, *, tools=None, temperature=0.2, max_tokens=None, stop=None):
+        from app.core.errors import ProviderError, ProviderTransientError
+
+        settings = get_settings()
+        # A gateway model id can be listed and still be upstream-dead, and one
+        # failed call puts that model on a ~2 minute credential cooldown. The
+        # pinned chain is the operator's statement of what else is acceptable,
+        # so use it instead of failing the request on the first dead id.
+        chain: list[str] = []
+        for model in [settings.chat_model, *settings.fallback_chain_list]:
+            if model and model not in chain:
+                chain.append(model)
+
+        last_error: Exception | None = None
+        for model in chain:
+            try:
+                return self._chat_with(model, messages, tools=tools,
+                                       temperature=temperature, max_tokens=max_tokens,
+                                       stop=stop)
+            except (ProviderError, ProviderTransientError) as e:
+                last_error = e
+                log.warning("gateway model %s failed: %s", model, str(e)[:200])
+        raise ProviderError(
+            f"All {len(chain)} pinned gateway models failed; last error: {last_error}"
+        ) from last_error
+
 
 class AnthropicLLM(BaseLLM):
     name = "anthropic"
@@ -429,16 +460,22 @@ class OllamaLLM(BaseLLM):
         settings = get_settings()
         self._base = settings.ollama_base_url.rstrip("/")
         self._model = settings.ollama_chat_model
+        self._num_ctx = settings.ollama_num_ctx
         self._http = httpx.Client(timeout=120.0)
 
     def chat(self, messages, *, tools=None, temperature=0.2, max_tokens=None, stop=None):
         from app.core.errors import ProviderError
 
+        options: dict = {"temperature": temperature}
+        if self._num_ctx > 0:
+            # Without this Ollama allocates the model's default context and the
+            # load fails outright on a small GPU (see Settings.ollama_num_ctx).
+            options["num_ctx"] = self._num_ctx
         payload = {
             "model": self._model,
             "messages": [_clean_msg(m) for m in messages],
             "stream": False,
-            "options": {"temperature": temperature},
+            "options": options,
         }
         try:
             r = self._http.post(f"{self._base}/api/chat", json=payload)

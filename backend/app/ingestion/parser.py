@@ -18,25 +18,63 @@ from pathlib import Path
 
 from app.core.errors import ValidationError
 from app.core.logging import get_logger
+from app.ingestion.cleaner import normalize_currency_glyphs
 
 log = get_logger(__name__)
 
 # Bump when the extraction contract (ParsedPage/TableExtract semantics) changes.
-PARSER_CONTRACT_VERSION = 1
+# v2: ParsedPage carries positioned words, and PDF financial rows are read from
+# that geometry instead of only from table cell indices.
+# v3: a mis-decoded Riyal sign is spelled out as SAR in page text and table
+# cells, so stored chunk text changes for currency-bearing documents.
+# v4: rendered table markdown is normalised too, which catches a sign and its
+# figure sitting in adjacent cells ("| ª | 56.25 |").
+PARSER_CONTRACT_VERSION = 4
+
+# pdfplumber reads table geometry either from drawn rules ('lines', its own
+# default) or from word positions ('text'). Reports laid out in a design tool
+# often have no usable rules, and 'lines' then returns degenerate grids.
+_TABLE_STRATEGY_BASELINE = "lines"
+_TABLE_STRATEGY_AUTO = "auto"
+_TEXT_TABLE_SETTINGS = {
+    "vertical_strategy": "text",
+    "horizontal_strategy": "text",
+    "snap_x_tolerance": 6,
+    "min_words_vertical": 2,
+}
 
 
 def extractor_fingerprint(source_format: str,
-                          pdf_dedupe: bool | None = None) -> str:
+                          pdf_dedupe: bool | None = None,
+                          table_strategy: str | None = None) -> str:
     """Stable id of the extractor configuration that produced a document.
 
     Chunk text and vectors are only comparable across documents built with the
     same extractor settings; a reindex guard must compare these fingerprints
-    before trusting retrieval metrics from a stored corpus.
+    before trusting retrieval metrics from a stored corpus. Components that
+    match the historical baseline are left out of the hash material, so a
+    baseline document keeps the fingerprint it had before this setting existed.
     """
     material = f"{source_format}|v{PARSER_CONTRACT_VERSION}"
     if pdf_dedupe is not None:
         material += f"|dedupe={int(pdf_dedupe)}"
+    if table_strategy and table_strategy != _TABLE_STRATEGY_BASELINE:
+        material += f"|tables={table_strategy}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+
+
+@dataclass
+class LayoutWord:
+    """One word with its position, as pdfplumber reported it.
+
+    Financial statements need column identity, and a column's identity is its
+    horizontal position — the text grid alone cannot say which year a number
+    belongs to.
+    """
+    text: str
+    x0: float
+    x1: float
+    top: float
 
 
 @dataclass
@@ -52,6 +90,7 @@ class ParsedPage:
     text: str
     tables: list[TableExtract] = field(default_factory=list)
     printed_page: int | None = None
+    words: list[LayoutWord] = field(default_factory=list)
 
 
 @dataclass
@@ -62,6 +101,7 @@ class ParsedDocument:
     needs_ocr: bool
     source_format: str
     deduped_pages: int = 0
+    text_table_pages: int = 0
     extractor_fingerprint: str = ""
 
     def page_text(self) -> str:
@@ -102,7 +142,9 @@ def _table_to_markdown(rows: list[list[str]]) -> str:
         # pad row to header length
         row = (row + [""] * len(header))[: len(header)]
         out.append("| " + " | ".join(row) + " |")
-    return "\n".join(out)
+    # Run over the joined lines, not the cells: a currency sign and its figure
+    # can land in adjacent cells, and that adjacency is only created here.
+    return normalize_currency_glyphs("\n".join(out))
 
 
 def _pdfplumber_dedupe_enabled() -> bool:
@@ -112,6 +154,82 @@ def _pdfplumber_dedupe_enabled() -> bool:
     except Exception as exc:  # pragma: no cover - settings unavailable
         log.debug("dedupe setting unavailable (%s); baseline extraction", exc)
         return False
+
+
+def _pdfplumber_table_strategy() -> str:
+    try:
+        from app.core.config import get_settings
+        value = get_settings().pdfplumber_table_strategy
+    except Exception as exc:  # pragma: no cover - settings unavailable
+        log.debug("table strategy setting unavailable (%s); baseline extraction",
+                  exc)
+        return _TABLE_STRATEGY_BASELINE
+    return value if value in (_TABLE_STRATEGY_BASELINE, _TABLE_STRATEGY_AUTO) \
+        else _TABLE_STRATEGY_BASELINE
+
+
+def _is_usable_table(rows: list[list[str]]) -> bool:
+    """A grid worth keeping: enough rows, and every row split into columns.
+
+    A single-column 'table' is a text column, not a table — it carries no
+    row/column relationship for the financial extractor to read.
+    """
+    return len(rows) >= 3 and all(len(r) >= 2 for r in rows)
+
+
+def _looks_tabular(rows: list[list[str]]) -> bool:
+    """Reject grids the text strategy cut out of running prose.
+
+    Word-position grids have no geometry to respect, so a paragraph becomes a
+    16-column 'table' of sentence fragments. A real table has a stable column
+    count, short cells, and a numeric cell in most of its rows; a sentence does
+    not. Without this screen, page-long prose grids land in ``tables_md`` and
+    dilute the parent chunk the retriever reads.
+    """
+    if len(rows) < 3 or max(len(r) for r in rows) < 3:
+        return False
+    if any(len(c) > 60 for r in rows for c in r):
+        return False
+    numeric_rows = sum(1 for r in rows
+                       if any(c and len(c) <= 16 and any(ch.isdigit() for ch in c)
+                              for c in r))
+    return numeric_rows >= max(2, len(rows) // 3)
+
+
+def _rows_of(raw_tables: list) -> list[list[list[str]]]:
+    """Clean every cell of pdfplumber's tables (each item is one table's rows)."""
+    return [[[normalize_currency_glyphs(cell or "") for cell in row]
+             for row in table] for table in raw_tables if table]
+
+
+def _extract_page_tables(page, strategy: str) -> tuple[list[list[list[str]]], bool]:
+    """Return (rows-per-table, used_text_fallback) for one PDF page."""
+    baseline = _rows_of(page.extract_tables() or [])
+    if strategy != _TABLE_STRATEGY_AUTO or any(_is_usable_table(r)
+                                               for r in baseline):
+        return baseline, False
+    try:
+        fallback = _rows_of(page.extract_tables(_TEXT_TABLE_SETTINGS) or [])
+    except Exception as exc:  # a page must never lose its baseline tables
+        log.debug("text table strategy failed on page %s: %s",
+                  getattr(page, "page_number", "?"), exc)
+        return baseline, False
+    shaped = [r for r in fallback if _is_usable_table(r) and _looks_tabular(r)]
+    if shaped:
+        return shaped, True
+    return baseline, False
+
+
+def _page_words(page) -> list[LayoutWord]:
+    """Word boxes for one page; financial column identity lives here."""
+    try:
+        return [LayoutWord(text=w["text"], x0=float(w["x0"]), x1=float(w["x1"]),
+                           top=float(w["top"]))
+                for w in (page.extract_words() or []) if w.get("text")]
+    except Exception as exc:  # pragma: no cover - layout is best-effort
+        log.debug("word extraction failed on page %s: %s",
+                  getattr(page, "page_number", "?"), exc)
+        return []
 
 
 def _parse_pdf(p: Path) -> ParsedDocument:
@@ -124,10 +242,12 @@ def _parse_pdf(p: Path) -> ParsedDocument:
         ) from e
 
     dedupe_enabled = _pdfplumber_dedupe_enabled()
+    table_strategy = _pdfplumber_table_strategy()
     pages: list[ParsedPage] = []
     all_tables: list[TableExtract] = []
     total_text = ""
     deduped_pages = 0
+    text_table_pages = 0
     with pdfplumber.open(str(p)) as pdf:
         for i, raw_page in enumerate(pdf.pages, start=1):
             # Some corpora ship a doubled glyph layer ("about" -> "AAbboouutt",
@@ -144,11 +264,13 @@ def _parse_pdf(p: Path) -> ParsedDocument:
                 if len(candidate.chars) < len(raw_page.chars):
                     page = candidate
                     deduped_pages += 1
-            text = page.extract_text() or ""
+            text = normalize_currency_glyphs(page.extract_text() or "")
             tables_md: list[TableExtract] = []
             try:
-                for t in page.extract_tables() or []:
-                    rows = [[(c or "") for c in row] for row in t]
+                rows_per_table, used_fallback = _extract_page_tables(
+                    page, table_strategy)
+                text_table_pages += int(used_fallback)
+                for rows in rows_per_table:
                     md = _table_to_markdown(rows)
                     if md:
                         tables_md.append(TableExtract(markdown=md, rows=rows, page=i))
@@ -161,7 +283,7 @@ def _parse_pdf(p: Path) -> ParsedDocument:
             if printed is None:
                 printed = _printed_page_number(text)
             pages.append(ParsedPage(page=i, text=text, tables=tables_md,
-                                    printed_page=printed))
+                                    printed_page=printed, words=_page_words(page)))
             all_tables.extend(tables_md)
             total_text += text + "\n"
 
@@ -177,7 +299,9 @@ def _parse_pdf(p: Path) -> ParsedDocument:
         needs_ocr=needs_ocr,
         source_format="pdf",
         deduped_pages=deduped_pages,
-        extractor_fingerprint=extractor_fingerprint("pdf", dedupe_enabled),
+        text_table_pages=text_table_pages,
+        extractor_fingerprint=extractor_fingerprint(
+            "pdf", dedupe_enabled, table_strategy),
     )
 
 

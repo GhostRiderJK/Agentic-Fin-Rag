@@ -183,22 +183,32 @@ def test_preferred_llm_name_wins_over_the_omniroute_name(make_settings):
     assert "legacy" not in repr(s)
 
 
-def test_defaults_pin_the_measured_models(make_settings):
-    """nemotron-3-ultra-550b is advertised by the gateway but dead upstream.
+def test_defaults_pin_the_measured_models(make_settings, monkeypatch):
+    """The pins are a measurement, restated so a stale default cannot drift back.
 
-    A default that names it costs every request its timeout budget before
-    falling back, so the defaults are asserted here instead of left to drift.
+    conftest exports test values for these names, so they are removed first:
+    what is asserted here is the value a deployment gets when it sets nothing.
+
+    Re-measured on 2026-10-20 with a generous completion budget
+    (reports/evidence_20261020/model-liveness-2.log): nemotron-3-super-120b is
+    the one that 404s now ("upstream error, reset after 2m"), and
+    nemotron-3-ultra-550b answers in 3.2s. A default naming a dead id costs
+    every request its timeout budget before the chain falls through, and
+    ``ollama/llama3.1`` is not routable through the gateway at all (401: no
+    credentials for provider ollama), so it is no longer in the chain either.
     """
+    for name in ("CHAT_MODEL", "REASONING_MODEL", "VISION_MODEL", "FALLBACK_CHAIN"):
+        monkeypatch.delenv(name, raising=False)
     s = make_settings()
-    assert s.chat_model == "nvidia/nvidia/nemotron-3-super-120b-a12b"
+    assert s.chat_model == "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
     assert s.reasoning_model == s.chat_model
-    assert "ultra" not in s.reasoning_model
+    assert "super-120b" not in s.reasoning_model
     assert s.vision_model == "nvidia/meta/llama-3.2-11b-vision-instruct"
     assert s.fallback_chain_list == [
-        "nvidia/nvidia/nemotron-3-super-120b-a12b",
-        "nvidia/poolside/laguna-xs-2.1",
+        "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
         "nvidia/stepfun-ai/step-5-preview",
-        "ollama/llama3.1",
+        "nvidia/nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/z-ai/glm-5.3-flash",
     ]
     assert s.embedding_model == "ollama/nomic-embed-text"
     assert s.embeddings_dim == 768

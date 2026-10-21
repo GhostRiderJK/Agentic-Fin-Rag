@@ -215,20 +215,23 @@ class Orchestrator:
                 "unsupported": v.unsupported,
                 "note": v.note,
             }
-            if v.outcome in {
-                VerificationOutcome.PARTIAL,
-                VerificationOutcome.REJECTED,
-            }:
-                # Never return factual claims that the citation verifier could
-                # not support. The verifier is approximate, so a positive
-                # result is still a signal rather than proof; a negative result
-                # must fail closed.
+            if v.outcome is VerificationOutcome.REJECTED or not v.supported:
+                # Most of the draft failed verification, so none of it is
+                # trustworthy enough to return.
                 draft_text = (
                     "I can't verify a complete answer from the retrieved "
                     "source passages, so I can't provide a reliable financial "
                     "answer."
                 )
                 notes.append("citation_verification_abstained")
+            elif v.outcome is VerificationOutcome.PARTIAL:
+                # Never return factual claims that the citation verifier could
+                # not support; but do not discard the claims it did support
+                # either. Abstaining wholesale threw away correct, cited
+                # figures because a single bullet failed the check, and the
+                # answer's citations went to zero with it.
+                draft_text = "\n".join(v.supported)
+                notes.append("citation_verification_trimmed")
 
         # Only return source records explicitly referenced by the generated
         # answer. References are one-based indexes into the exact context list.

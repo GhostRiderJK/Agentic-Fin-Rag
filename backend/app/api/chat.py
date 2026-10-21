@@ -198,7 +198,12 @@ def feedback(
     user: CurrentUser,
 ):
     msg = db.get(Message, message_id)
-    if not msg:
+    conv = db.get(Conversation, msg.conversation_id) if msg else None
+    # A rating is a write on another tenant's answer unless the conversation is
+    # scoped, so ownership is checked along the same chain every conversation
+    # route uses: message -> conversation -> workspace -> tenant.
+    ws = db.get(Workspace, conv.workspace_id) if conv else None
+    if not msg or not ws or ws.tenant_id != user.tenant_id:
         from app.core.errors import NotFoundError
 
         raise NotFoundError("message not found")

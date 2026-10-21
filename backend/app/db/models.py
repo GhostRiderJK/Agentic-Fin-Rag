@@ -167,6 +167,12 @@ class EvalRun(Base):
     __tablename__ = "eval_runs"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    # Owned, like everything an admin can list. Plain string columns rather than
+    # ForeignKey so init_db can add them to a database that already has rows
+    # (SQLite refuses to ALTER a column in with a REFERENCES clause), and the
+    # scope is a read filter, not a referential-integrity requirement.
+    tenant_id: Mapped[str | None] = mapped_column(String(32), index=True, nullable=True)
+    workspace_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     suite: Mapped[str] = mapped_column(String(128), default="default")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     n_items: Mapped[int] = mapped_column(Integer, default=0)

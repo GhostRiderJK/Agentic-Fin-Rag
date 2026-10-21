@@ -21,7 +21,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, without_secrets
 from app.core.logging import get_logger
 from app.db.base import get_sessionmaker
 from app.db.models import Job, JobStatus
@@ -173,7 +173,10 @@ def _process_job(job_id: str, sm) -> None:
             job.progress = 1.0
         except Exception as e:
             job.status = JobStatus.failed
-            job.error = f"{type(e).__name__}: {e}"
+            # The row is what ``GET /jobs`` returns, so an upstream body that
+            # echoed the caller's key would otherwise reach the UI. The full
+            # exception still goes to the server log below.
+            job.error = without_secrets(f"{type(e).__name__}: {e}")
             log.exception("job %s failed", job_id)
         job.finished_at = datetime.now(timezone.utc)
         db.commit()
@@ -227,9 +230,17 @@ def _do_eval(job: Job, db: Session) -> dict:
     path, name = resolve(job.payload.get("suite", ""))
     suite = EvalSuite.from_jsonl(path, workspace_id=job.workspace_id, name=name)
     result = EvalRunner(db, _job_ctx(job)).run(suite)
+    # A run where nothing answered has no metrics, only error counts. Failing the
+    # job here is what stops "succeeded" from being reported next to a table of
+    # numbers that were never measured.
+    if result.n_items and not result.metrics.get("n_scored"):
+        first = next((it.error for it in result.items if it.error), "unknown")
+        raise RuntimeError(
+            f"all {result.n_items} eval items failed to answer; first error: {first}")
     return {
         "suite": result.suite,
         "n_items": result.n_items,
+        "n_errored": int(result.metrics.get("n_errored", 0)),
         "metrics": result.metrics,
     }
 

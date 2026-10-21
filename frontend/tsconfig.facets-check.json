@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "strict": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] },
+    "outDir": "node_modules/.facets-check",
+    "noEmit": false
+  },
+  "include": ["src/lib/workspace-facets.ts"]
+}

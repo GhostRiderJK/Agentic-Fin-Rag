@@ -328,15 +328,6 @@ class TestChatRoutes:
         assert r.status_code == 200
         assert [m["id"] for m in r.json()] == [seeded["A"]["message_id"]]
 
-    @pytest.mark.xfail(
-        reason=(
-            "POST /messages/{message_id}/feedback loads the message by id with "
-            "no workspace or tenant check (app/api/chat.py), so any authenticated "
-            "user can rate another tenant's answer. Closed by the chat migration "
-            "in item (f), where MessageRepository scopes the lookup."
-        ),
-        strict=True,
-    )
     def test_feedback_cannot_reach_a_foreign_message(self, client, actors, seeded):
         r = client.post(
             f"/messages/{seeded['B']['message_id']}/feedback",
@@ -417,16 +408,9 @@ class TestAdminRoutes:
             )
             assert r.status_code == 422, (hostile, r.status_code, r.text)
 
-    @pytest.mark.xfail(
-        reason=(
-            "eval_runs has no tenant column in the SQL schema, so "
-            "GET /admin/eval/runs returns every tenant's runs to any admin "
-            "(app/api/admin.py). Closed by item (f): eval_runs is tenant-owned "
-            "in MongoDB and the route reads through EvalRunRepository."
-        ),
-        strict=True,
-    )
     def test_eval_run_list_excludes_foreign_runs(self, client, actors, seeded):
+        """eval_runs is tenant-owned, so a run with no tenant of record and a
+        run owned by another tenant are both invisible here."""
         suite = f"tenant-B-{seeded['B']['suffix']}"
         with db_scope() as db:
             db.add(EvalRun(suite=suite, n_items=1))

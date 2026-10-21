@@ -93,8 +93,48 @@ def db_scope() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    """Create all tables (dev/seeding path). Production uses Alembic."""
+    """Create all tables, then bring an existing one up to the current model.
+
+    ``create_all`` skips tables that already exist and this project has no
+    Alembic, so a column added to a model after the first deploy would never
+    appear in the deployed database and every read that filters on it would
+    fail with "no such column". ``_ADDED_COLUMNS`` is the list that makes that
+    gap explicit; each entry is one additive, nullable column.
+    """
     # Import models so they register on Base.metadata
     from app.db import models  # noqa: F401
 
-    Base.metadata.create_all(bind=get_engine())
+    engine = get_engine()
+    Base.metadata.create_all(bind=engine)
+    _add_missing_columns(engine)
+
+
+#: table -> [(column, SQL type, create an index on it?)]
+_ADDED_COLUMNS: dict[str, list[tuple[str, str, bool]]] = {
+    "eval_runs": [
+        ("tenant_id", "VARCHAR(32)", True),
+        ("workspace_id", "VARCHAR(32)", False),
+    ],
+}
+
+
+def _add_missing_columns(engine) -> None:
+    """ALTER each listed column into a table that predates it. Never drops."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    for table, columns in _ADDED_COLUMNS.items():
+        if not inspector.has_table(table):
+            continue
+        present = {c["name"] for c in inspector.get_columns(table)}
+        for name, sql_type, indexed in columns:
+            if name in present:
+                continue
+            # Names come from the constant above, never from a request.
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
+                if indexed:
+                    conn.execute(text(
+                        f"CREATE INDEX IF NOT EXISTS ix_{table}_{name} "
+                        f"ON {table} ({name})"
+                    ))

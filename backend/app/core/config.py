@@ -118,20 +118,24 @@ class Settings(BaseSettings):
     )
 
     # Model configuration: pinned IDs, never "auto" routing. These defaults are
-    # the ids measured live against the gateway (docs/gateway-deep-probe.json);
-    # nemotron-3-ultra-550b is advertised but upstream-dead, so it is not here.
-    chat_model: str = "nvidia/nvidia/nemotron-3-super-120b-a12b"
-    reasoning_model: str = "nvidia/nvidia/nemotron-3-super-120b-a12b"
+    # the ids re-measured against the gateway on 2026-10-20
+    # (reports/evidence_20261020/model-liveness-2.log, model-liveness-3.log):
+    # nemotron-3-super-120b now 404s ("upstream error, reset after 2m") while
+    # nemotron-3-ultra-550b answers in 3s. A default that names a dead id costs
+    # every request its timeout budget before the chain falls through, so the
+    # chain lists only ids that answered 200 with content on that date.
+    chat_model: str = "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+    reasoning_model: str = "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
     vision_model: str = "nvidia/meta/llama-3.2-11b-vision-instruct"
     embedding_model: str = "ollama/nomic-embed-text"
     rerank_model: str = ""      # gateway offers no working rerank model
 
     # Explicit pinned fallback chain, comma-separated, in preference order
     fallback_chain: str = (
-        "nvidia/nvidia/nemotron-3-super-120b-a12b,"
-        "nvidia/poolside/laguna-xs-2.1,"
+        "nvidia/nvidia/nemotron-3-ultra-550b-a55b,"
         "nvidia/stepfun-ai/step-5-preview,"
-        "ollama/llama3.1"
+        "nvidia/nvidia/nemotron-3.5-lightning-30b-a3b,"
+        "nvidia/z-ai/glm-5.3-flash"
     )
 
     # Providers allowed to receive tenant data, comma-separated
@@ -157,6 +161,11 @@ class Settings(BaseSettings):
     anthropic_chat_model: str = "claude-sonnet-4-5"
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_chat_model: str = "llama3.1"
+    # Ollama sizes the KV cache from the model's own default context (4096 for
+    # llama3.2:3b, ~4 GB), which fails cudaMalloc on an 8 GB GPU and kills the
+    # request before any inference happens. Sending num_ctx caps that allocation
+    # so a small GPU can serve the model at all; 0 leaves Ollama's default.
+    ollama_num_ctx: int = 0
     embedding_request_timeout_seconds: float = 120.0
 
     # Embeddings. Local Ollama is the embedding source for this project;
@@ -197,6 +206,22 @@ class Settings(BaseSettings):
             "actually show position duplicates are touched. Changing this "
             "changes extracted text, so a corpus must be reindexed when the "
             "setting flips; never flip it together with a retrieval knob."
+        ),
+    )
+    pdfplumber_table_strategy: Literal["lines", "auto"] = Field(
+        default="auto",
+        description=(
+            "How pdfplumber is asked for tables on each PDF page. 'lines' is "
+            "the library default (geometry from drawn rules). 'auto' keeps the "
+            "'lines' result whenever it contains at least one usable table "
+            "(>=3 rows, >=2 columns per row); on pages where 'lines' only "
+            "produces degenerate single-column grids it re-extracts with the "
+            "text strategy, which infers gridlines from word positions. "
+            "Measured on the PIF annual-report corpus: 'lines' yields 1 usable "
+            "table per document, 'auto' yields 73-76, which is what makes the "
+            "structured-financials store non-empty. Table geometry is part of "
+            "the extracted text (parent chunks carry tables_md), so flipping "
+            "this requires a re-ingest and a retrieval re-baseline."
         ),
     )
 

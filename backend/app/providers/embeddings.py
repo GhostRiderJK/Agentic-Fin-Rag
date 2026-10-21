@@ -252,6 +252,18 @@ def get_embeddings() -> BaseEmbeddings:
         # Fail loudly: silently substituting stub vectors would embed tenant
         # documents in a space that no real model can query.
         _emb_singleton = OllamaEmbeddings()
+    elif settings.qdrant_mode == "remote":
+        # A remote collection is shared and survives the process, so vectors
+        # that no model can produce are worse than a refused start: every
+        # chunk written under a stub vector is unqueryable by a real model, and
+        # the damage is only visible later, as silent retrieval misses.
+        raise ProviderError(
+            "EMBEDDINGS_PROVIDER=stub cannot write to a remote Qdrant "
+            f"(QDRANT_MODE={settings.qdrant_mode!r}, collection "
+            f"{settings.qdrant_collection!r}). Set EMBEDDINGS_PROVIDER to "
+            "ollama or openai, or run against a local in-memory store.",
+            provider=provider,
+        )
     else:
         _emb_singleton = StubEmbeddings(dim=settings.embeddings_dim)
     return _emb_singleton
